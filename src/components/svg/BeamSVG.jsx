@@ -35,6 +35,130 @@
  *   above the UDL rows so point-load labels don't collide with UDL arrows.
  */
 import { computeBeamLayout } from '../../utils/beamLayout.js'
+import { IPE_SECTIONS } from '../../data/sections.js'
+
+// ── Cross-section end-cut renderer ──────────────────────────────────────────
+function SectionEndCut({ section, xSec, yTop, sW, sH, sc }) {
+  if (!section || section.type === 'none' || sW <= 0) return null
+  const type = section.type
+
+  if (type === 'steel') {
+    const prof = IPE_SECTIONS[section.steel?.profile]
+    if (!prof) return null
+    const tfPx = Math.max(2, prof.tf * sc)
+    const twPx = Math.max(1.5, prof.tw * sc)
+    const cx   = xSec + sW / 2
+    return (
+      <g>
+        <rect x={xSec}           y={yTop}              width={sW}    height={tfPx}              fill="#1e3a5f" />
+        <rect x={cx - twPx / 2}  y={yTop + tfPx}       width={twPx}  height={sH - 2 * tfPx}    fill="#1e3a5f" />
+        <rect x={xSec}           y={yTop + sH - tfPx}  width={sW}    height={tfPx}              fill="#1e3a5f" />
+        <rect x={xSec} y={yTop} width={sW} height={sH} fill="none" stroke="#0f2340" strokeWidth={0.6} />
+        <text x={cx} y={yTop + sH + 9} textAnchor="middle" fontSize={7.5} fill="#6b7280">
+          {section.steel?.profile}
+        </text>
+      </g>
+    )
+  }
+
+  if (type === 'glulam') {
+    const { h: hMm = 360, b: bMm = 140 } = section.glulam ?? {}
+    const numLam = Math.max(2, Math.round(hMm / 45))
+    const lamPx  = sH / numLam
+    return (
+      <g>
+        {Array.from({ length: numLam }, (_, i) => (
+          <rect key={i} x={xSec} y={yTop + i * lamPx} width={sW} height={lamPx}
+            fill={i % 2 === 0 ? '#f0d9a0' : '#e8cb88'} stroke="none" />
+        ))}
+        {Array.from({ length: numLam - 1 }, (_, i) => (
+          <line key={i} x1={xSec} y1={yTop + (i + 1) * lamPx} x2={xSec + sW} y2={yTop + (i + 1) * lamPx}
+            stroke="#c8a85a" strokeWidth={0.7} />
+        ))}
+        <rect x={xSec} y={yTop} width={sW} height={sH} fill="none" stroke="#7a5c2a" strokeWidth={0.8} />
+        <text x={xSec + sW / 2} y={yTop + sH + 9} textAnchor="middle" fontSize={7.5} fill="#6b7280">
+          {bMm}×{hMm}
+        </text>
+      </g>
+    )
+  }
+
+  if (type === 'concrete') {
+    const { b: bMm = 200, h: hMm = 400, n_bot = 3, dia_bot = 16 } = section.concrete ?? {}
+    const cover  = 30  // mm
+    const cPx    = Math.max(2, cover * sc)
+    const rPx    = Math.max(1.5, (dia_bot / 2) * sc)
+    const rebarY = yTop + sH - cPx - rPx
+    const rebarXs = Array.from({ length: n_bot }, (_, i) => {
+      const xMin = xSec + cPx + rPx
+      const xMax = xSec + sW  - cPx - rPx
+      return n_bot === 1 ? xSec + sW / 2 : xMin + i * (xMax - xMin) / (n_bot - 1)
+    })
+    return (
+      <g>
+        <rect x={xSec} y={yTop} width={sW} height={sH} fill="#9ca3af" stroke="#374151" strokeWidth={0.8} />
+        {rebarXs.map((rx, i) => (
+          <circle key={i} cx={rx} cy={rebarY} r={rPx} fill="#1a1a2e" />
+        ))}
+        <text x={xSec + sW / 2} y={yTop + sH + 9} textAnchor="middle" fontSize={7.5} fill="#6b7280">
+          {bMm}×{hMm}
+        </text>
+      </g>
+    )
+  }
+
+  return null
+}
+
+// ── Beam elevation side profile ───────────────────────────────────────────────
+function BeamSideProfile({ section, x0, beamTop, beamLen, beamH, sc }) {
+  if (!section || section.type === 'none') {
+    return <rect x={x0} y={beamTop} width={beamLen} height={beamH} fill="#e8e8e8" stroke="#1a1a2e" strokeWidth={1.5} />
+  }
+
+  if (section.type === 'glulam') {
+    const hMm   = section.glulam?.h ?? 360
+    const numLam = Math.max(2, Math.round(hMm / 45))
+    const lamPx  = beamH / numLam
+    return (
+      <g>
+        {Array.from({ length: numLam }, (_, i) => (
+          <rect key={i} x={x0} y={beamTop + i * lamPx} width={beamLen} height={lamPx}
+            fill={i % 2 === 0 ? '#f0d9a0' : '#e8cb88'} stroke="none" />
+        ))}
+        {Array.from({ length: numLam - 1 }, (_, i) => (
+          <line key={i} x1={x0} y1={beamTop + (i + 1) * lamPx} x2={x0 + beamLen} y2={beamTop + (i + 1) * lamPx}
+            stroke="#c8a85a" strokeWidth={0.7} />
+        ))}
+        <rect x={x0} y={beamTop} width={beamLen} height={beamH} fill="none" stroke="#7a5c2a" strokeWidth={1.5} />
+      </g>
+    )
+  }
+
+  if (section.type === 'steel') {
+    const prof = IPE_SECTIONS[section.steel?.profile]
+    const tfPx = prof ? Math.max(1, prof.tf * sc) : 0
+    return (
+      <g>
+        <rect x={x0} y={beamTop} width={beamLen} height={beamH} fill="#b0c4d8" stroke="#1a1a2e" strokeWidth={1.5} />
+        {tfPx > 0 && beamH > 2 * tfPx + 1 && (
+          <>
+            <line x1={x0} y1={beamTop + tfPx}        x2={x0 + beamLen} y2={beamTop + tfPx}
+              stroke="#0f2340" strokeWidth={0.8} />
+            <line x1={x0} y1={beamTop + beamH - tfPx} x2={x0 + beamLen} y2={beamTop + beamH - tfPx}
+              stroke="#0f2340" strokeWidth={0.8} />
+          </>
+        )}
+      </g>
+    )
+  }
+
+  if (section.type === 'concrete') {
+    return <rect x={x0} y={beamTop} width={beamLen} height={beamH} fill="#9ca3af" stroke="#374151" strokeWidth={1.5} />
+  }
+
+  return <rect x={x0} y={beamTop} width={beamLen} height={beamH} fill="#e8e8e8" stroke="#1a1a2e" strokeWidth={1.5} />
+}
 
 export default function BeamSVG({
   L = 12,
@@ -47,14 +171,33 @@ export default function BeamSVG({
   intermediateSupports = [],
   scale = 1,             // display scale factor (keeps viewBox, shrinks rendered size)
   showDimension = true,  // show the bottom dimension line
+  section = { type: 'none' },
+  beamH: beamHProp,      // override from section proportional scaling
 }) {
   const {
-    W, x0, x1, beamLen, beamH,
+    W: baseW, x0, x1, beamLen, beamH,
     udlLoads, pointLoads,
     rowH, rowGap, udlTop,
     beamTop, beamBot, loadAreaTop,
     H,
-  } = computeBeamLayout({ loads, supports, showDimension })
+  } = computeBeamLayout({ loads, supports, showDimension, beamH: beamHProp })
+
+  // ── Section geometry ────────────────────────────────────────────────────
+  const sc = beamLen / (L * 1000)   // px per mm
+
+  let secBMm = 0
+  if (section?.type === 'steel') {
+    const prof = IPE_SECTIONS[section.steel?.profile]
+    secBMm = prof?.b ?? 0
+  } else if (section?.type === 'glulam') {
+    secBMm = section.glulam?.b ?? 0
+  } else if (section?.type === 'concrete') {
+    secBMm = section.concrete?.b ?? 0
+  }
+
+  const sectionW   = section?.type !== 'none' ? Math.max(10, Math.min(55, Math.round(secBMm * sc))) : 0
+  const sectionGap = sectionW > 0 ? 18 : 0
+  const W          = Math.max(baseW, x1 + sectionGap + sectionW + 10)
 
   const Ltot = L + overhang
   // x-position of the right support (may differ from x1 when overhang > 0)
@@ -201,9 +344,18 @@ export default function BeamSVG({
       {udlLoads.map((row, i) => renderUDL(row, i))}
       {pointLoads.map((load, i) => renderPointLoad(load, i))}
 
-      {/* Beam rectangle */}
-      <rect x={x0} y={beamTop} width={beamLen} height={beamH}
-        fill="#e8e8e8" stroke="#1a1a2e" strokeWidth="1.5" />
+      {/* Beam elevation profile */}
+      <BeamSideProfile section={section} x0={x0} beamTop={beamTop} beamLen={beamLen} beamH={beamH} sc={sc} />
+
+      {/* Cross-section end cut */}
+      <SectionEndCut
+        section={section}
+        xSec={x1 + sectionGap}
+        yTop={beamTop}
+        sW={sectionW}
+        sH={beamH}
+        sc={sc}
+      />
 
       {/* Rebar lines */}
       {rebarBotSegs.map((seg, i) => (

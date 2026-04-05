@@ -6,6 +6,7 @@ import CanvasDropZone from './components/editor/CanvasDropZone.jsx'
 import PropertiesPanel from './components/editor/PropertiesPanel.jsx'
 import InteractiveBeamOverlay from './components/editor/InteractiveBeamOverlay.jsx'
 import { beamSolverDSM } from './utils/beamSolverDSM.js'
+import { IPE_SECTIONS } from './data/sections.js'
 
 // ── Support constraint helpers ───────────────────────────────────────────────
 
@@ -103,13 +104,36 @@ export default function App() {
     showDim: true,
   })
 
+  const [sectionState, setSectionState] = useState({
+    type: 'none',
+    glulam:   { grade: 'GL28h', b: 140, h: 360 },
+    steel:    { profile: 'IPE200' },
+    concrete: { b: 200, h: 400, n_bot: 3, dia_bot: 16 },
+  })
+
   const [selectedId, setSelectedId] = useState(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [exportMenuOpen, setExportMenuOpen] = useState(false)
   const beamSvgRef = useRef(null)
   const diagramSvgRef = useRef(null)
 
+  function getEffectiveSectionH(section, L) {
+    if (!section || section.type === 'none') return undefined
+    const sc = 380 / (L * 1000)   // px per mm, using beamLen=380
+    let h_mm
+    if (section.type === 'steel') {
+      const prof = IPE_SECTIONS[section.steel?.profile]
+      h_mm = prof?.h ?? 200
+    } else if (section.type === 'glulam') {
+      h_mm = section.glulam?.h ?? 360
+    } else if (section.type === 'concrete') {
+      h_mm = section.concrete?.h ?? 400
+    }
+    return Math.max(1, Math.round(h_mm * sc))
+  }
+
   function beamFigure() {
+    const effectiveBeamH = getEffectiveSectionH(sectionState, beamState.L)
     return {
       type: 'beam',
       props: {
@@ -117,6 +141,8 @@ export default function App() {
         loads: beamState.loads.map(({ id, ...rest }) => rest),
         intermediateSupports: beamState.intermediateSupports.map(s => s.frac),
         numGridCells: undefined,
+        section: sectionState,
+        ...(effectiveBeamH !== undefined ? { beamH: effectiveBeamH } : {}),
       },
     }
   }
@@ -260,8 +286,9 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
-  const currentFigure = tab === 'beam' ? beamFigure() : columnFigure()
-  const dsmResult     = tab === 'beam' ? computeDiagrams(beamState) : null
+  const currentFigure    = tab === 'beam' ? beamFigure() : columnFigure()
+  const dsmResult        = tab === 'beam' ? computeDiagrams(beamState) : null
+  const effectiveBeamH   = getEffectiveSectionH(sectionState, beamState.L)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f9fafb' }}>
@@ -375,6 +402,7 @@ export default function App() {
                 {tab === 'beam' && (
                   <InteractiveBeamOverlay
                     beamState={beamState}
+                    effectiveBeamH={effectiveBeamH}
                     selectedId={selectedId}
                     onSelectLoad={setSelectedId}
                     onLoadChange={handleLoadChange}
@@ -409,12 +437,14 @@ export default function App() {
           beamState={beamState}
           columnState={columnState}
           selectedId={selectedId}
+          sectionState={sectionState}
           onBeamChange={handleBeamChange}
           onColumnChange={handleColumnChange}
           onLoadChange={handleLoadChange}
           onDeleteLoad={handleDeleteLoad}
           onInnerSupportMove={handleInnerSupportMove}
           onInnerSupportRemove={handleInnerSupportRemove}
+          onSectionChange={setSectionState}
         />
       </div>
     </div>

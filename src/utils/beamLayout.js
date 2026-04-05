@@ -4,12 +4,12 @@
  * Mirrors the inline layout computation from BeamSVG.jsx so both the renderer
  * and the interactive overlay stay in sync without duplicating logic.
  */
-export function computeBeamLayout({ loads = [], supports = {}, showDimension = true }) {
+export function computeBeamLayout({ loads = [], supports = {}, showDimension = true, beamH: beamHProp }) {
   const W = 520
   const x0 = 70       // left beam end x
   const x1 = 450      // right beam end x
   const beamLen = x1 - x0
-  const beamH = 22    // visual height of beam rectangle
+  const beamH = beamHProp ?? 22    // visual height of beam rectangle
 
   const udlLoads   = loads.filter(l => l.type === 'udl')
   const pointLoads = loads.filter(l => l.type === 'point')

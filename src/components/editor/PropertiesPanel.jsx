@@ -1,3 +1,6 @@
+import { IPE_SECTIONS } from '../../data/sections.js'
+import { GLULAM } from '../../data/materials.js'
+
 const SUPPORT_OPTIONS = ['pin', 'roller', 'fixed', 'free']
 const SUPPORT_OPTIONS_NO_H = ['roller', 'free']  // excludes horizontally-restraining types
 
@@ -50,12 +53,14 @@ export default function PropertiesPanel({
   beamState,
   columnState,
   selectedId,
+  sectionState,
   onBeamChange,
   onColumnChange,
   onLoadChange,
   onDeleteLoad,
   onInnerSupportMove,
   onInnerSupportRemove,
+  onSectionChange,
 }) {
   const panelStyle = {
     width: 210,
@@ -261,6 +266,91 @@ export default function PropertiesPanel({
             onChange={e => onBeamChange({ numGridCells: Math.max(2, parseInt(e.target.value) || 10) })}
           />
         </Field>
+
+        <hr style={dividerStyle} />
+
+        {/* ── Section ──────────────────────────────────────────── */}
+        <div style={{ ...headingStyle, marginBottom: '0.5rem' }}>Section</div>
+
+        <Field label="Type">
+          <select
+            value={sectionState?.type ?? 'none'}
+            onChange={e => onSectionChange({ ...sectionState, type: e.target.value })}
+            style={inputStyle}
+          >
+            <option value="none">None</option>
+            <option value="glulam">Glulam</option>
+            <option value="steel">Steel (IPE)</option>
+            <option value="concrete">Concrete</option>
+          </select>
+        </Field>
+
+        {sectionState?.type === 'glulam' && (
+          <>
+            <Field label="Grade">
+              <select
+                value={sectionState.glulam?.grade ?? 'GL28h'}
+                onChange={e => onSectionChange({ ...sectionState, glulam: { ...sectionState.glulam, grade: e.target.value } })}
+                style={inputStyle}
+              >
+                {Object.keys(GLULAM).map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </Field>
+            <Field label="Width b (mm)">
+              <input type="number" min="45" max="400" step="5" style={inputStyle}
+                value={sectionState.glulam?.b ?? 140}
+                onChange={e => onSectionChange({ ...sectionState, glulam: { ...sectionState.glulam, b: parseFloat(e.target.value) || 140 } })}
+              />
+            </Field>
+            <Field label="Height h (mm)">
+              <input type="number" min="90" max="2000" step="45" style={inputStyle}
+                value={sectionState.glulam?.h ?? 360}
+                onChange={e => onSectionChange({ ...sectionState, glulam: { ...sectionState.glulam, h: parseFloat(e.target.value) || 360 } })}
+              />
+            </Field>
+          </>
+        )}
+
+        {sectionState?.type === 'steel' && (
+          <Field label="Profile">
+            <select
+              value={sectionState.steel?.profile ?? 'IPE200'}
+              onChange={e => onSectionChange({ ...sectionState, steel: { ...sectionState.steel, profile: e.target.value } })}
+              style={inputStyle}
+            >
+              {Object.keys(IPE_SECTIONS).map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
+        )}
+
+        {sectionState?.type === 'concrete' && (
+          <>
+            <Field label="Width b (mm)">
+              <input type="number" min="50" max="1000" step="25" style={inputStyle}
+                value={sectionState.concrete?.b ?? 200}
+                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, b: parseFloat(e.target.value) || 200 } })}
+              />
+            </Field>
+            <Field label="Height h (mm)">
+              <input type="number" min="50" max="2000" step="25" style={inputStyle}
+                value={sectionState.concrete?.h ?? 400}
+                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, h: parseFloat(e.target.value) || 400 } })}
+              />
+            </Field>
+            <Field label="Bottom rebars">
+              <input type="number" min="0" max="12" step="1" style={inputStyle}
+                value={sectionState.concrete?.n_bot ?? 3}
+                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, n_bot: parseInt(e.target.value) || 0 } })}
+              />
+            </Field>
+            <Field label="Bar diameter (mm)">
+              <input type="number" min="6" max="40" step="2" style={inputStyle}
+                value={sectionState.concrete?.dia_bot ?? 16}
+                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, dia_bot: parseFloat(e.target.value) || 16 } })}
+              />
+            </Field>
+          </>
+        )}
 
         <hr style={dividerStyle} />
 

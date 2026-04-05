@@ -19,6 +19,7 @@ function fmtPos(frac, L) {
 
 export default function InteractiveBeamOverlay({
   beamState,
+  effectiveBeamH,
   selectedId,
   onSelectLoad,
   onLoadChange,
@@ -39,7 +40,7 @@ export default function InteractiveBeamOverlay({
     L = 6,
   } = beamState
 
-  const layout = computeBeamLayout({ loads, supports, showDimension })
+  const layout = computeBeamLayout({ loads, supports, showDimension, beamH: effectiveBeamH })
   const { W, x0, x1, beamLen, beamH, beamTop, beamBot, loadAreaTop,
           udlLoads, pointLoads, H, rowH, rowGap, udlTop } = layout
 
