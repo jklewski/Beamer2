@@ -38,9 +38,10 @@ export default function InteractiveBeamOverlay({
     intermediateSupports = [],
     numGridCells = 10,
     L = 6,
+    supportScale = 1,
   } = beamState
 
-  const layout = computeBeamLayout({ loads, supports, showDimension, beamH: effectiveBeamH })
+  const layout = computeBeamLayout({ loads, supports, showDimension, beamH: effectiveBeamH, supportScale })
   const { W, x0, x1, beamLen, beamH, beamTop, beamBot, loadAreaTop,
           udlLoads, pointLoads, H, rowH, rowGap, udlTop } = layout
 
@@ -114,7 +115,7 @@ export default function InteractiveBeamOverlay({
   // Handle circle radius — large enough to fit a short position label inside
   const handleR  = 11
   const hitW     = handleR * 2 + 2
-  const supZoneH = 50
+  const supZoneH = Math.ceil(22 * supportScale + 12)
   const supZoneW = 40
 
   // Shared text label rendered inside a handle circle

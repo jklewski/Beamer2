@@ -4,7 +4,7 @@
  * Mirrors the inline layout computation from BeamSVG.jsx so both the renderer
  * and the interactive overlay stay in sync without duplicating logic.
  */
-export function computeBeamLayout({ loads = [], supports = {}, showDimension = true, beamH: beamHProp }) {
+export function computeBeamLayout({ loads = [], supports = {}, showDimension = true, beamH: beamHProp, supportScale = 1 }) {
   const W = 520
   const x0 = 70       // left beam end x
   const x1 = 450      // right beam end x
@@ -35,7 +35,8 @@ export function computeBeamLayout({ loads = [], supports = {}, showDimension = t
   const beamBot = beamTop + beamH
   const loadAreaTop = topPad  // y where point-load arrows start
 
-  const supportH = (supports.left === 'fixed' || supports.right === 'fixed') ? 35 : 45
+  const triH = 22 * supportScale
+  const supportH = (supports.left === 'fixed' || supports.right === 'fixed') ? 35 : Math.ceil(triH + 24)
   const H = beamBot + supportH + (showDimension ? 50 : 10)
 
   return {

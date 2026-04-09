@@ -70,11 +70,14 @@ function computeDiagrams(beamState) {
 
   try {
     const result = beamSolverDSM({ spans, supports: dsmSupports, distributedLoads, pointLoads, EI: 1 })
+    if (result.mVals.some(v => !isFinite(v))) {
+      return { data: null, isMechanism: true }
+    }
     result.normalizedDefl = true
-    return result
+    return { data: result, isMechanism: false }
   } catch (err) {
     console.warn('beamSolverDSM error:', err)
-    return null
+    return { data: null, isMechanism: false }
   }
 }
 
@@ -93,6 +96,7 @@ export default function App() {
     intermediateSupports: [],
     numGridCells: 20,
     showDimension: true,
+    supportScale: 1,
   })
 
   const [columnState, setColumnState] = useState({
@@ -142,6 +146,7 @@ export default function App() {
         intermediateSupports: beamState.intermediateSupports.map(s => s.frac),
         numGridCells: undefined,
         section: sectionState,
+        supportScale: beamState.supportScale ?? 1,
         ...(effectiveBeamH !== undefined ? { beamH: effectiveBeamH } : {}),
       },
     }
@@ -288,6 +293,7 @@ export default function App() {
 
   const currentFigure    = tab === 'beam' ? beamFigure() : columnFigure()
   const dsmResult        = tab === 'beam' ? computeDiagrams(beamState) : null
+  const isMechanism      = dsmResult?.isMechanism ?? false
   const effectiveBeamH   = getEffectiveSectionH(sectionState, beamState.L)
 
   return (
@@ -416,11 +422,23 @@ export default function App() {
             </div>
           </CanvasDropZone>
 
+          {/* Mechanism warning */}
+          {tab === 'beam' && isMechanism && (
+            <div style={{
+              background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8,
+              padding: '0.75rem 1.25rem', color: '#92400e', fontSize: '0.875rem',
+              maxWidth: 520, width: '100%', boxSizing: 'border-box',
+            }}>
+              <strong>Mechanism detected.</strong> The beam has insufficient supports and cannot be solved.
+              Add at least one vertical support (pin, roller, or fixed) to each independent segment.
+            </div>
+          )}
+
           {/* M / V diagrams — only shown for beam tab when solver succeeds */}
-          {tab === 'beam' && dsmResult && (
+          {tab === 'beam' && dsmResult?.data && (
             <div ref={diagramSvgRef} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem', display: 'inline-block' }}>
               <MomentDiagramSVG
-                precomputed={dsmResult}
+                precomputed={dsmResult.data}
                 showMoment
                 showShear
                 showDeflection

@@ -267,6 +267,15 @@ export default function PropertiesPanel({
           />
         </Field>
 
+        <Field label={`Support size ×${(beamState.supportScale ?? 1).toFixed(1)}`}>
+          <input
+            type="range" min="0.5" max="3" step="0.1"
+            style={{ width: '100%', cursor: 'pointer' }}
+            value={beamState.supportScale ?? 1}
+            onChange={e => onBeamChange({ supportScale: parseFloat(e.target.value) })}
+          />
+        </Field>
+
         <hr style={dividerStyle} />
 
         {/* ── Section ──────────────────────────────────────────── */}

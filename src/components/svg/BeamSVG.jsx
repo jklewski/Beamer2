@@ -173,6 +173,7 @@ export default function BeamSVG({
   showDimension = true,  // show the bottom dimension line
   section = { type: 'none' },
   beamH: beamHProp,      // override from section proportional scaling
+  supportScale = 1,      // scale factor for support symbol size
 }) {
   const {
     W: baseW, x0, x1, beamLen, beamH,
@@ -180,7 +181,7 @@ export default function BeamSVG({
     rowH, rowGap, udlTop,
     beamTop, beamBot, loadAreaTop,
     H,
-  } = computeBeamLayout({ loads, supports, showDimension, beamH: beamHProp })
+  } = computeBeamLayout({ loads, supports, showDimension, beamH: beamHProp, supportScale })
 
   // ── Section geometry ────────────────────────────────────────────────────
   const sc = beamLen / (L * 1000)   // px per mm
@@ -271,9 +272,9 @@ export default function BeamSVG({
   // ── Support shapes ─────────────────────────────────────────────────────
   // All support y-coordinates reference beamBot (bottom of beam)
   function renderSupport(type, x, side) {
-    const triH = 22
-    const triW = 13
-    const groundW = 16
+    const triH = 22 * supportScale
+    const triW = 13 * supportScale
+    const groundW = 16 * supportScale
 
     if (type === 'pin') {
       return (
@@ -332,7 +333,7 @@ export default function BeamSVG({
   }
 
   // ── Dimension line ─────────────────────────────────────────────────────
-  const dimY = beamBot + (supports.left === 'fixed' ? 30 : 40)
+  const dimY = beamBot + (supports.left === 'fixed' ? 30 : Math.ceil(22 * supportScale + 18))
 
   // Normalise rebarBot/rebarTop: boolean true → full span, array → use as-is
   const rebarBotSegs = !rebarBot ? [] : rebarBot === true ? [{ xStart: 0, xEnd: 1 }] : rebarBot
