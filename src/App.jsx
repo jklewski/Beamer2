@@ -7,6 +7,7 @@ import PropertiesPanel from './components/editor/PropertiesPanel.jsx'
 import InteractiveBeamOverlay from './components/editor/InteractiveBeamOverlay.jsx'
 import { beamSolverDSM } from './utils/beamSolverDSM.js'
 import { IPE_SECTIONS } from './data/sections.js'
+import SectionAnalysisView from './components/section/SectionAnalysisView.jsx'
 
 // ── Support constraint helpers ───────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export default function App() {
     type: 'none',
     glulam:   { grade: 'GL28h', b: 140, h: 360 },
     steel:    { profile: 'IPE200' },
-    concrete: { b: 200, h: 400, n_bot: 3, dia_bot: 16 },
+    concrete: { b: 200, h: 400, n_bot: 3, dia_bot: 16, n_top: 0, dia_top: 10, cover: 30, fc: 25, fy: 500 },
   })
 
   const [selectedId, setSelectedId] = useState(null)
@@ -302,7 +303,7 @@ export default function App() {
       <div style={{ background: '#1a1a2e', color: '#fff', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <h1 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 600 }}>Beamer2</h1>
         <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {['beam', 'column'].map(t => (
+          {['beam', 'column', 'section'].map(t => (
             <button
               key={t}
               onClick={() => { setTab(t); setSelectedId(null) }}
@@ -317,7 +318,7 @@ export default function App() {
                 fontSize: '0.875rem',
               }}
             >
-              {t === 'beam' ? 'Beam' : 'Column'}
+              {t === 'beam' ? 'Beam' : t === 'column' ? 'Column' : 'Section'}
             </button>
           ))}
         </div>
@@ -389,14 +390,25 @@ export default function App() {
         {/* Left: Toolbox */}
         <Toolbox
           tab={tab}
-          innerSupportCount={beamState.intermediateSupports.length}
+          beamState={beamState}
+          selectedId={selectedId}
+          onBeamChange={handleBeamChange}
+          onLoadChange={handleLoadChange}
+          onDeleteLoad={handleDeleteLoad}
+          onInnerSupportMove={handleInnerSupportMove}
+          onInnerSupportRemove={handleInnerSupportRemove}
         />
 
         {/* Center: scrollable column — beam figure + diagrams */}
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '1.5rem' }}>
 
-          {/* Beam / Column figure with drop zone */}
-          <CanvasDropZone
+          {/* Section analysis tab */}
+          {tab === 'section' && (
+            <SectionAnalysisView sectionState={sectionState} />
+          )}
+
+          {/* Beam / Column figure with drop zone — hidden on section tab */}
+          {tab !== 'section' && <CanvasDropZone
             onDropElement={handleDrop}
             isDragOver={isDragOver}
             setIsDragOver={setIsDragOver}
@@ -420,7 +432,7 @@ export default function App() {
                 )}
               </div>
             </div>
-          </CanvasDropZone>
+          </CanvasDropZone>}
 
           {/* Mechanism warning */}
           {tab === 'beam' && isMechanism && (
@@ -452,16 +464,9 @@ export default function App() {
         {/* Right: Properties */}
         <PropertiesPanel
           tab={tab}
-          beamState={beamState}
           columnState={columnState}
-          selectedId={selectedId}
           sectionState={sectionState}
-          onBeamChange={handleBeamChange}
           onColumnChange={handleColumnChange}
-          onLoadChange={handleLoadChange}
-          onDeleteLoad={handleDeleteLoad}
-          onInnerSupportMove={handleInnerSupportMove}
-          onInnerSupportRemove={handleInnerSupportRemove}
           onSectionChange={setSectionState}
         />
       </div>

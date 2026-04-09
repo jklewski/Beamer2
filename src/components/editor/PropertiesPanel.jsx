@@ -1,13 +1,6 @@
 import { IPE_SECTIONS } from '../../data/sections.js'
 import { GLULAM } from '../../data/materials.js'
 
-const SUPPORT_OPTIONS = ['pin', 'roller', 'fixed', 'free']
-const SUPPORT_OPTIONS_NO_H = ['roller', 'free']  // excludes horizontally-restraining types
-
-function restrainsH(type) {
-  return type === 'pin' || type === 'fixed'
-}
-
 const labelStyle = {
   display: 'block',
   fontSize: '0.75rem',
@@ -25,398 +18,223 @@ const inputStyle = {
   boxSizing: 'border-box',
 }
 
-const sectionStyle = {
-  marginBottom: '1rem',
-}
+const fieldWrap = { marginBottom: '0.75rem' }
 
 function Field({ label, children }) {
   return (
-    <div style={sectionStyle}>
+    <div style={fieldWrap}>
       <label style={labelStyle}>{label}</label>
       {children}
     </div>
   )
 }
 
+const SUPPORT_OPTIONS = ['pin', 'roller', 'fixed', 'free']
+
 function SupportSelect({ value, onChange, options = SUPPORT_OPTIONS }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)} style={inputStyle}>
-      {options.map(o => (
-        <option key={o} value={o}>{o}</option>
-      ))}
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
   )
 }
 
+function SectionLabel({ children }) {
+  return (
+    <div style={{
+      fontSize: '0.7rem',
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      color: '#9ca3af',
+      marginBottom: '0.4rem',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+// ── Section fields ────────────────────────────────────────────────────────────
+
+function SectionFields({ sectionState, onSectionChange }) {
+  const sc   = sectionState ?? { type: 'none' }
+  const conc = sc.concrete ?? {}
+
+  return (
+    <>
+      <Field label="Type">
+        <select
+          value={sc.type ?? 'none'}
+          onChange={e => onSectionChange({ ...sc, type: e.target.value })}
+          style={inputStyle}
+        >
+          <option value="none">None</option>
+          <option value="concrete">Concrete (RC)</option>
+          <option value="glulam">Glulam</option>
+          <option value="steel">Steel (IPE)</option>
+        </select>
+      </Field>
+
+      {/* ── Concrete ── */}
+      {sc.type === 'concrete' && (
+        <>
+          <Field label="Width b (mm)">
+            <input type="number" min="50" max="1000" step="25" style={inputStyle}
+              value={conc.b ?? 200}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, b: parseFloat(e.target.value) || 200 } })}
+            />
+          </Field>
+          <Field label="Height h (mm)">
+            <input type="number" min="50" max="2000" step="25" style={inputStyle}
+              value={conc.h ?? 400}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, h: parseFloat(e.target.value) || 400 } })}
+            />
+          </Field>
+          <Field label="Cover (mm)">
+            <input type="number" min="10" max="100" step="5" style={inputStyle}
+              value={conc.cover ?? 30}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, cover: parseFloat(e.target.value) || 30 } })}
+            />
+          </Field>
+          <Field label="Tension bars (n)">
+            <input type="number" min="1" max="12" step="1" style={inputStyle}
+              value={conc.n_bot ?? 3}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, n_bot: parseInt(e.target.value) || 1 } })}
+            />
+          </Field>
+          <Field label="Tension ⌀ (mm)">
+            <input type="number" min="6" max="40" step="2" style={inputStyle}
+              value={conc.dia_bot ?? 16}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, dia_bot: parseFloat(e.target.value) || 16 } })}
+            />
+          </Field>
+          <Field label="Compr. bars (n)">
+            <input type="number" min="0" max="12" step="1" style={inputStyle}
+              value={conc.n_top ?? 0}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, n_top: parseInt(e.target.value) || 0 } })}
+            />
+          </Field>
+          <Field label="Compr. ⌀ (mm)">
+            <input type="number" min="6" max="40" step="2" style={inputStyle}
+              value={conc.dia_top ?? 10}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, dia_top: parseFloat(e.target.value) || 10 } })}
+            />
+          </Field>
+          <Field label="fc (MPa)">
+            <input type="number" min="12" max="90" step="5" style={inputStyle}
+              value={conc.fc ?? 25}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, fc: parseFloat(e.target.value) || 25 } })}
+            />
+          </Field>
+          <Field label="fy (MPa)">
+            <input type="number" min="200" max="600" step="50" style={inputStyle}
+              value={conc.fy ?? 500}
+              onChange={e => onSectionChange({ ...sc, concrete: { ...conc, fy: parseFloat(e.target.value) || 500 } })}
+            />
+          </Field>
+        </>
+      )}
+
+      {/* ── Glulam ── */}
+      {sc.type === 'glulam' && (
+        <>
+          <Field label="Grade">
+            <select
+              value={sc.glulam?.grade ?? 'GL28h'}
+              onChange={e => onSectionChange({ ...sc, glulam: { ...sc.glulam, grade: e.target.value } })}
+              style={inputStyle}
+            >
+              {Object.keys(GLULAM).map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </Field>
+          <Field label="Width b (mm)">
+            <input type="number" min="45" max="400" step="5" style={inputStyle}
+              value={sc.glulam?.b ?? 140}
+              onChange={e => onSectionChange({ ...sc, glulam: { ...sc.glulam, b: parseFloat(e.target.value) || 140 } })}
+            />
+          </Field>
+          <Field label="Height h (mm)">
+            <input type="number" min="90" max="2000" step="45" style={inputStyle}
+              value={sc.glulam?.h ?? 360}
+              onChange={e => onSectionChange({ ...sc, glulam: { ...sc.glulam, h: parseFloat(e.target.value) || 360 } })}
+            />
+          </Field>
+        </>
+      )}
+
+      {/* ── Steel ── */}
+      {sc.type === 'steel' && (
+        <Field label="Profile">
+          <select
+            value={sc.steel?.profile ?? 'IPE200'}
+            onChange={e => onSectionChange({ ...sc, steel: { ...sc.steel, profile: e.target.value } })}
+            style={inputStyle}
+          >
+            {Object.keys(IPE_SECTIONS).map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </Field>
+      )}
+    </>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export default function PropertiesPanel({
   tab,
-  beamState,
   columnState,
-  selectedId,
   sectionState,
-  onBeamChange,
   onColumnChange,
-  onLoadChange,
-  onDeleteLoad,
-  onInnerSupportMove,
-  onInnerSupportRemove,
   onSectionChange,
 }) {
   const panelStyle = {
-    width: 210,
-    minWidth: 210,
+    width: 195,
+    minWidth: 195,
     background: '#fff',
     borderLeft: '1px solid #e5e7eb',
-    padding: '1rem',
+    padding: '0.85rem 0.85rem',
     overflowY: 'auto',
     fontSize: '0.85rem',
   }
 
-  const headingStyle = {
-    fontSize: '0.8rem',
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    color: '#374151',
-    marginBottom: '0.75rem',
-  }
-
-  const dividerStyle = {
-    border: 'none',
-    borderTop: '1px solid #f3f4f6',
-    margin: '0.75rem 0',
-  }
-
-  // ── Beam: inner support selected ─────────────────────────────────────────
-  if (tab === 'beam' && selectedId) {
-    const isupIdx = beamState.intermediateSupports.findIndex(s => s.id === selectedId)
-    if (isupIdx !== -1) {
-      const sup = beamState.intermediateSupports[isupIdx]
-      const step = 1 / (beamState.numGridCells ?? 10)
-      return (
-        <div style={panelStyle}>
-          <div style={headingStyle}>Inner Support</div>
-          <div style={{ color: '#6b7280', fontSize: '0.78rem', marginBottom: '0.75rem' }}>
-            Roller (vertical only)
-          </div>
-
-          <Field label="Position (0–1)">
-            <input
-              type="number" min={step} max={1 - step} step={step}
-              style={inputStyle}
-              value={sup.frac.toFixed(3)}
-              onChange={e => {
-                const v = parseFloat(e.target.value)
-                if (!isNaN(v)) onInnerSupportMove(sup.id, v)
-              }}
-            />
-          </Field>
-
-          <Field label={`Position (m)`}>
-            <input
-              type="number" readOnly style={{ ...inputStyle, background: '#f9fafb', color: '#6b7280' }}
-              value={(sup.frac * beamState.L).toFixed(2)}
-            />
-          </Field>
-
-          <hr style={dividerStyle} />
-
-          <button
-            onClick={() => onInnerSupportRemove(sup.id)}
-            style={{
-              width: '100%', padding: '0.4rem',
-              background: '#fef2f2', color: '#dc2626',
-              border: '1px solid #fca5a5', borderRadius: 4,
-              cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500,
-            }}
-          >
-            Remove Support
-          </button>
-        </div>
-      )
-    }
-  }
-
-  // ── Beam: load selected ──────────────────────────────────────────────────
-  if (tab === 'beam' && selectedId) {
-    const load = beamState.loads.find(l => l.id === selectedId)
-    if (!load) return <div style={panelStyle} />
-
-    const isUDL = load.type === 'udl'
-
+  // ── Column tab ────────────────────────────────────────────────────────────
+  if (tab === 'column') {
     return (
       <div style={panelStyle}>
-        <div style={headingStyle}>{isUDL ? 'Distributed Load' : 'Point Load'}</div>
-
-        <Field label="Label">
-          <input
-            style={inputStyle}
-            value={load.label ?? ''}
-            onChange={e => onLoadChange(selectedId, { label: e.target.value })}
-          />
+        <SectionLabel>Column</SectionLabel>
+        <Field label="Height L (m)">
+          <input type="number" min="0.5" step="0.5" style={inputStyle}
+            value={columnState.L}
+            onChange={e => onColumnChange({ L: parseFloat(e.target.value) || 1 })} />
         </Field>
-
-        <Field label="Magnitude">
-          <input
-            type="number"
-            style={inputStyle}
-            value={load.magnitude ?? ''}
-            onChange={e => onLoadChange(selectedId, { magnitude: parseFloat(e.target.value) || 0 })}
-          />
+        <Field label="Axial load label">
+          <input style={inputStyle} value={columnState.N_label}
+            onChange={e => onColumnChange({ N_label: e.target.value })} />
         </Field>
-
-        {isUDL ? (
-          <>
-            <Field label="Start (0–1)">
-              <input
-                type="number" min="0" max="1" step="0.05"
-                style={inputStyle}
-                value={load.xStart ?? 0}
-                onChange={e => onLoadChange(selectedId, { xStart: parseFloat(e.target.value) })}
-              />
-            </Field>
-            <Field label="End (0–1)">
-              <input
-                type="number" min="0" max="1" step="0.05"
-                style={inputStyle}
-                value={load.xEnd ?? 1}
-                onChange={e => onLoadChange(selectedId, { xEnd: parseFloat(e.target.value) })}
-              />
-            </Field>
-          </>
-        ) : (
-          <Field label="Position (0–1)">
-            <input
-              type="number" min="0" max="1" step="0.05"
-              style={inputStyle}
-              value={load.x ?? 0.5}
-              onChange={e => onLoadChange(selectedId, { x: parseFloat(e.target.value) })}
-            />
-          </Field>
-        )}
-
-        <Field label="Color">
-          <input
-            type="color"
-            style={{ ...inputStyle, padding: 2, height: 34, cursor: 'pointer' }}
-            value={load.color ?? '#2563eb'}
-            onChange={e => onLoadChange(selectedId, { color: e.target.value })}
-          />
+        <Field label="UDL label">
+          <input style={inputStyle} value={columnState.q_label}
+            onChange={e => onColumnChange({ q_label: e.target.value })} />
         </Field>
-
-        <hr style={dividerStyle} />
-
-        <button
-          onClick={() => onDeleteLoad(selectedId)}
-          style={{
-            width: '100%',
-            padding: '0.4rem',
-            background: '#fef2f2',
-            color: '#dc2626',
-            border: '1px solid #fca5a5',
-            borderRadius: 4,
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: 500,
-          }}
-        >
-          Delete Load
-        </button>
-      </div>
-    )
-  }
-
-  // ── Beam: global properties ──────────────────────────────────────────────
-  if (tab === 'beam') {
-    return (
-      <div style={panelStyle}>
-        <div style={headingStyle}>Beam</div>
-
-        <Field label="Span L (m)">
-          <input
-            type="number" min="0.5" step="0.5"
-            style={inputStyle}
-            value={beamState.L}
-            onChange={e => onBeamChange({ L: parseFloat(e.target.value) || 1 })}
-          />
+        <Field label="Base support">
+          <SupportSelect value={columnState.support}
+            onChange={v => onColumnChange({ support: v })} />
         </Field>
-
-        <Field label="Left support">
-          <SupportSelect
-            value={beamState.supports.left}
-            options={restrainsH(beamState.supports.right) ? SUPPORT_OPTIONS_NO_H : SUPPORT_OPTIONS}
-            onChange={v => onBeamChange({ supports: { ...beamState.supports, left: v } })}
-          />
-        </Field>
-
-        <Field label="Right support">
-          <SupportSelect
-            value={beamState.supports.right}
-            onChange={v => onBeamChange({ supports: { ...beamState.supports, right: v } })}
-          />
-        </Field>
-
-        <hr style={dividerStyle} />
-
-        <Field label="Grid divisions">
-          <input
-            type="number" min="2" max="20" step="1"
-            style={inputStyle}
-            value={beamState.numGridCells ?? 10}
-            onChange={e => onBeamChange({ numGridCells: Math.max(2, parseInt(e.target.value) || 10) })}
-          />
-        </Field>
-
-        <Field label={`Support size ×${(beamState.supportScale ?? 1).toFixed(1)}`}>
-          <input
-            type="range" min="0.5" max="3" step="0.1"
-            style={{ width: '100%', cursor: 'pointer' }}
-            value={beamState.supportScale ?? 1}
-            onChange={e => onBeamChange({ supportScale: parseFloat(e.target.value) })}
-          />
-        </Field>
-
-        <hr style={dividerStyle} />
-
-        {/* ── Section ──────────────────────────────────────────── */}
-        <div style={{ ...headingStyle, marginBottom: '0.5rem' }}>Section</div>
-
-        <Field label="Type">
-          <select
-            value={sectionState?.type ?? 'none'}
-            onChange={e => onSectionChange({ ...sectionState, type: e.target.value })}
-            style={inputStyle}
-          >
-            <option value="none">None</option>
-            <option value="glulam">Glulam</option>
-            <option value="steel">Steel (IPE)</option>
-            <option value="concrete">Concrete</option>
+        <Field label="Top support">
+          <select value={columnState.topSupport}
+            onChange={e => onColumnChange({ topSupport: e.target.value })} style={inputStyle}>
+            <option value="none">none</option>
+            <option value="roller">roller</option>
           </select>
         </Field>
-
-        {sectionState?.type === 'glulam' && (
-          <>
-            <Field label="Grade">
-              <select
-                value={sectionState.glulam?.grade ?? 'GL28h'}
-                onChange={e => onSectionChange({ ...sectionState, glulam: { ...sectionState.glulam, grade: e.target.value } })}
-                style={inputStyle}
-              >
-                {Object.keys(GLULAM).map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </Field>
-            <Field label="Width b (mm)">
-              <input type="number" min="45" max="400" step="5" style={inputStyle}
-                value={sectionState.glulam?.b ?? 140}
-                onChange={e => onSectionChange({ ...sectionState, glulam: { ...sectionState.glulam, b: parseFloat(e.target.value) || 140 } })}
-              />
-            </Field>
-            <Field label="Height h (mm)">
-              <input type="number" min="90" max="2000" step="45" style={inputStyle}
-                value={sectionState.glulam?.h ?? 360}
-                onChange={e => onSectionChange({ ...sectionState, glulam: { ...sectionState.glulam, h: parseFloat(e.target.value) || 360 } })}
-              />
-            </Field>
-          </>
-        )}
-
-        {sectionState?.type === 'steel' && (
-          <Field label="Profile">
-            <select
-              value={sectionState.steel?.profile ?? 'IPE200'}
-              onChange={e => onSectionChange({ ...sectionState, steel: { ...sectionState.steel, profile: e.target.value } })}
-              style={inputStyle}
-            >
-              {Object.keys(IPE_SECTIONS).map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </Field>
-        )}
-
-        {sectionState?.type === 'concrete' && (
-          <>
-            <Field label="Width b (mm)">
-              <input type="number" min="50" max="1000" step="25" style={inputStyle}
-                value={sectionState.concrete?.b ?? 200}
-                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, b: parseFloat(e.target.value) || 200 } })}
-              />
-            </Field>
-            <Field label="Height h (mm)">
-              <input type="number" min="50" max="2000" step="25" style={inputStyle}
-                value={sectionState.concrete?.h ?? 400}
-                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, h: parseFloat(e.target.value) || 400 } })}
-              />
-            </Field>
-            <Field label="Bottom rebars">
-              <input type="number" min="0" max="12" step="1" style={inputStyle}
-                value={sectionState.concrete?.n_bot ?? 3}
-                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, n_bot: parseInt(e.target.value) || 0 } })}
-              />
-            </Field>
-            <Field label="Bar diameter (mm)">
-              <input type="number" min="6" max="40" step="2" style={inputStyle}
-                value={sectionState.concrete?.dia_bot ?? 16}
-                onChange={e => onSectionChange({ ...sectionState, concrete: { ...sectionState.concrete, dia_bot: parseFloat(e.target.value) || 16 } })}
-              />
-            </Field>
-          </>
-        )}
-
-        <hr style={dividerStyle} />
-
-        <div style={{ color: '#9ca3af', fontSize: '0.78rem', lineHeight: 1.5 }}>
-          Click a load or support in the diagram to edit it. Drag items from the toolbox onto the canvas.
-        </div>
       </div>
     )
   }
 
-  // ── Column: global properties ────────────────────────────────────────────
+  // ── Beam / Section tabs: section properties ───────────────────────────────
   return (
     <div style={panelStyle}>
-      <div style={headingStyle}>Column</div>
-
-      <Field label="Height L (m)">
-        <input
-          type="number" min="0.5" step="0.5"
-          style={inputStyle}
-          value={columnState.L}
-          onChange={e => onColumnChange({ L: parseFloat(e.target.value) || 1 })}
-        />
-      </Field>
-
-      <Field label="Axial load label">
-        <input
-          style={inputStyle}
-          value={columnState.N_label}
-          onChange={e => onColumnChange({ N_label: e.target.value })}
-        />
-      </Field>
-
-      <Field label="UDL label">
-        <input
-          style={inputStyle}
-          value={columnState.q_label}
-          onChange={e => onColumnChange({ q_label: e.target.value })}
-        />
-      </Field>
-
-      <Field label="Base support">
-        <SupportSelect
-          value={columnState.support}
-          onChange={v => onColumnChange({ support: v })}
-        />
-      </Field>
-
-      <Field label="Top support">
-        <select
-          value={columnState.topSupport}
-          onChange={e => onColumnChange({ topSupport: e.target.value })}
-          style={inputStyle}
-        >
-          <option value="none">none</option>
-          <option value="roller">roller</option>
-        </select>
-      </Field>
+      <SectionLabel>Section</SectionLabel>
+      <SectionFields sectionState={sectionState} onSectionChange={onSectionChange} />
     </div>
   )
 }

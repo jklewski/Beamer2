@@ -1,0 +1,325 @@
+/**
+ * ConcreteSectionAnalysis – interactive moment-curvature analysis panel.
+ *
+ * Shows:
+ *  1. Three-panel SVG: cross-section | stress diagram | strain diagram
+ *  2. Strain slider + state info
+ *  3. Force equilibrium strip
+ *  4. Moment-curvature envelope
+ */
+import { useMemo, useEffect } from 'react'
+import { solveConcreteMomentCurvature } from '../../utils/concreteSectionSolver.js'
+import MomentCurvatureSVG from '../svg/MomentCurvatureSVG.jsx'
+
+// ── EC2 Sargin stress for SVG rendering ───────────────────────────────────────
+function makeSigC(fc) {
+  const f_cm  = fc * 1e6
+  const eps_c1 = 0.7 * Math.pow(fc, 0.31) * 1e-3
+  const k_sar  = 1.05 * 30e9 * eps_c1 / f_cm
+  const eps_cu = 3.5e-3
+  return (eps) => {
+    if (eps <= 0) return 0
+    const n = Math.min(eps, eps_cu) / eps_c1
+    return fc * (k_sar * n - n * n) / ((k_sar - 2) * n + 1)  // MPa
+  }
+}
+
+// ── Evenly-spaced bar x-positions (mm from left) ──────────────────────────────
+function barXPos(n, dia_mm, b_mm, cover_mm) {
+  if (n <= 0) return []
+  const xMin = cover_mm + dia_mm / 2
+  const xMax = b_mm - cover_mm - dia_mm / 2
+  if (n === 1) return [b_mm / 2]
+  return Array.from({ length: n }, (_, i) => xMin + i * (xMax - xMin) / (n - 1))
+}
+
+// ── Three-panel section SVG ────────────────────────────────────────────────────
+function SectionDiagram({ section, result, k }) {
+  const { b, h, fc, n_bot, dia_bot, n_top, dia_top, cover } = section
+
+  const xn_m    = result.NA[k]               // neutral axis from top (metres)
+  const xn_mm   = xn_m * 1000
+  const eps_max = result.eps_c_out[k]        // top concrete strain
+  const eps_s   = result.eps_s1_out[k]       // tension steel strain (positive)
+  const cracked = result.crackCheck[k]
+
+  const sigC = makeSigC(fc)
+
+  // ── Layout constants ───────────────────────────────────────────────────────
+  const MAX_W = 90, MAX_H = 190
+  const sc     = Math.min(MAX_W / b, MAX_H / h)    // px per mm
+  const sec_w  = b * sc
+  const sec_h  = h * sc
+
+  const topY   = 28
+  const p1l    = 28              // left edge of section
+  const p1r    = p1l + sec_w
+  const p2z    = p1r + 80       // zero-stress axis
+  const p3z    = p2z + 130      // zero-strain axis
+  const SVG_W  = Math.ceil(p3z + 90)
+  const SVG_H  = Math.ceil(topY + sec_h + 34)
+
+  const tY  = (y_mm) => topY + y_mm * sc
+  const tX1 = (x_mm) => p1l  + x_mm * sc
+  const botY = topY + sec_h
+
+  // Bar positions
+  const xBotL1 = barXPos(Math.min(n_bot, Math.max(1, Math.floor((b - 2*(dia_bot+5)) / (2*dia_bot)))), dia_bot, b, cover)
+  const xBotAll = barXPos(n_bot, dia_bot, b, cover)  // simplified: all in one row for SVG
+  const xTop    = barXPos(n_top, dia_top, b, cover)
+  const yBotMM  = h - cover - dia_bot / 2
+  const yTopMM  = cover + dia_top / 2
+
+  // Stress profile (compression block, N_pts points from top to neutral axis)
+  const N_pts = 40
+  const sigScPx = 80 / fc   // px per MPa, so fc maps to 80 px
+  const stressPts = Array.from({ length: N_pts + 1 }, (_, i) => {
+    const y_mm  = xn_mm * i / N_pts                   // depth from top (0 → x_na)
+    const eps   = eps_max > 0 ? eps_max * (1 - i / N_pts) : 0  // eps_cu at top, 0 at NA
+    const sig   = sigC(eps)
+    return `${(p2z + sig * sigScPx).toFixed(1)},${tY(y_mm).toFixed(1)}`
+  })
+  const stressPoly = [`${p2z},${topY}`, ...stressPts, `${p2z},${tY(xn_mm)}`].join(' ')
+
+  // Strain diagram (linear, top to bottom)
+  const d_mm    = result.d_m * 1000
+  const d_p_mm  = result.d_p_m * 1000
+  const strainMax  = Math.max(eps_max, eps_s, 1e-4) * 1.15
+  const strainScPx = 55 / strainMax
+  const tX3 = (eps) => p3z + eps * strainScPx
+
+  const dc   = '#9ca3af'
+  const blk  = '#374151'
+  const compC = '#1e3a5f'
+  const tensC = '#b91c1c'
+  const fs    = 9
+
+  return (
+    <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width={SVG_W} height={SVG_H}
+      style={{ fontFamily: 'sans-serif', overflow: 'visible' }}>
+
+      {/* Panel labels */}
+      <text x={p1l + sec_w/2} y={14} textAnchor="middle" fontSize={fs} fill={dc}>Section</text>
+      <text x={p2z + 40}      y={14} textAnchor="middle" fontSize={fs} fill={dc}>Stress</text>
+      <text x={p3z + 10}      y={14} textAnchor="middle" fontSize={fs} fill={dc}>Strain</text>
+
+      {/* ── PANEL 1: Cross-section ── */}
+      <rect x={p1l} y={topY} width={sec_w} height={sec_h}
+        fill="#d1dce8" stroke={blk} strokeWidth={1.5} />
+
+      {/* Compression zone tint */}
+      {xn_mm > 0 && (
+        <rect x={p1l + 1} y={topY + 1}
+          width={sec_w - 2} height={Math.max(0, tY(xn_mm) - topY - 1)}
+          fill="rgba(30,58,95,0.12)" />
+      )}
+
+      {/* Neutral axis */}
+      {xn_mm > 0 && xn_mm < h && (
+        <line x1={p1l - 5} y1={tY(xn_mm)} x2={p1r + 5} y2={tY(xn_mm)}
+          stroke={dc} strokeWidth={0.9} strokeDasharray="3,2" />
+      )}
+
+      {/* Bottom bars */}
+      {xBotAll.map((x, i) => (
+        <circle key={`bt${i}`} cx={tX1(x)} cy={tY(yBotMM)}
+          r={Math.max(2, dia_bot * sc / 2)} fill={blk} />
+      ))}
+
+      {/* Top bars */}
+      {xTop.map((x, i) => (
+        <circle key={`tp${i}`} cx={tX1(x)} cy={tY(yTopMM)}
+          r={Math.max(1.5, dia_top * sc / 2)} fill={blk} />
+      ))}
+
+      {/* h dimension */}
+      <line x1={p1l - 12} y1={topY}  x2={p1l - 12} y2={botY}  stroke={dc} strokeWidth={0.7} />
+      <line x1={p1l - 15} y1={topY}  x2={p1l - 9}  y2={topY}  stroke={dc} strokeWidth={0.7} />
+      <line x1={p1l - 15} y1={botY}  x2={p1l - 9}  y2={botY}  stroke={dc} strokeWidth={0.7} />
+      <text x={p1l - 14} y={(topY + botY) / 2 + 3} textAnchor="end" fontSize={8} fill={dc}
+        transform={`rotate(-90, ${p1l - 14}, ${(topY + botY) / 2 + 3})`}>h={h}</text>
+
+      {/* b dimension */}
+      <line x1={p1l}  y1={botY + 8} x2={p1r} y2={botY + 8} stroke={dc} strokeWidth={0.7} />
+      <line x1={p1l}  y1={botY + 5} x2={p1l} y2={botY + 11} stroke={dc} strokeWidth={0.7} />
+      <line x1={p1r}  y1={botY + 5} x2={p1r} y2={botY + 11} stroke={dc} strokeWidth={0.7} />
+      <text x={p1l + sec_w/2} y={botY + 20} textAnchor="middle" fontSize={8} fill={dc}>b={b}</text>
+
+      {/* ── PANEL 2: Stress ── */}
+      <line x1={p2z} y1={topY - 5} x2={p2z} y2={botY + 5} stroke={dc} strokeWidth={0.9} />
+      <line x1={p2z - 3} y1={topY} x2={p2z + 3} y2={topY} stroke={dc} strokeWidth={0.9} />
+      <line x1={p2z - 3} y1={botY} x2={p2z + 3} y2={botY} stroke={dc} strokeWidth={0.9} />
+
+      {eps_max > 0 && xn_mm > 0 && (
+        <>
+          <polygon points={stressPoly} fill="rgba(30,58,95,0.22)" stroke={compC} strokeWidth={1.2} />
+          {/* NA depth label */}
+          <text x={p2z + 4} y={tY(xn_mm) + 10} fontSize={8} fill={compC}>
+            x={xn_mm.toFixed(0)} mm
+          </text>
+        </>
+      )}
+
+      {/* Tension steel stress bar */}
+      {result.sigma_s_out[k] > 0 && (
+        <>
+          <line x1={p2z} y1={tY(d_mm)} x2={p2z - result.sigma_s_out[k] * 0.08} y2={tY(d_mm)}
+            stroke={tensC} strokeWidth={2} />
+          <circle cx={p2z - result.sigma_s_out[k] * 0.08} cy={tY(d_mm)} r={2.5} fill={tensC} />
+          <text x={p2z - result.sigma_s_out[k] * 0.08 - 3} y={tY(d_mm) - 3}
+            textAnchor="end" fontSize={7.5} fill={tensC}>
+            {result.sigma_s_out[k].toFixed(0)} MPa
+          </text>
+        </>
+      )}
+
+      {/* Compression steel stress bar */}
+      {n_top > 0 && result.sigma_sp_out[k] > 0 && (
+        <>
+          <line x1={p2z} y1={tY(d_p_mm)} x2={p2z + result.sigma_sp_out[k] * 0.08} y2={tY(d_p_mm)}
+            stroke={compC} strokeWidth={2} />
+          <circle cx={p2z + result.sigma_sp_out[k] * 0.08} cy={tY(d_p_mm)} r={2.5} fill={compC} />
+        </>
+      )}
+
+      {/* ── PANEL 3: Strain ── */}
+      <line x1={p3z} y1={topY - 5} x2={p3z} y2={botY + 5} stroke={dc} strokeWidth={0.9} />
+      <line x1={p3z - 3} y1={topY} x2={p3z + 3} y2={topY} stroke={dc} strokeWidth={0.9} />
+      <line x1={p3z - 3} y1={botY} x2={p3z + 3} y2={botY} stroke={dc} strokeWidth={0.9} />
+
+      {eps_max > 0 && (
+        <>
+          {/* Strain polygon */}
+          <polygon
+            points={[
+              `${p3z},${topY}`,
+              `${tX3(-eps_max)},${topY}`,
+              `${tX3(eps_s)},${botY}`,
+              `${p3z},${botY}`,
+            ].join(' ')}
+            fill="rgba(30,58,95,0.08)" stroke="none"
+          />
+          <line
+            x1={tX3(-eps_max)} y1={topY}
+            x2={tX3(eps_s)}    y2={botY}
+            stroke={compC} strokeWidth={1.5}
+          />
+          {/* NA circle */}
+          <circle cx={p3z} cy={tY(xn_mm)} r={2.5} fill={dc} />
+
+          {/* eps_c label at top */}
+          <text x={tX3(-eps_max)} y={topY - 6}
+            textAnchor="middle" fontSize={7.5} fill={compC}>
+            {(eps_max * 1000).toFixed(2)}‰
+          </text>
+
+          {/* eps_s label at steel level */}
+          <circle cx={tX3(eps_s)} cy={tY(d_mm)} r={2} fill={tensC} />
+          <text x={tX3(eps_s) + 3} y={tY(d_mm) + 3}
+            fontSize={7.5} fill={tensC}>{(eps_s * 1000).toFixed(2)}‰</text>
+        </>
+      )}
+
+    </svg>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+export default function ConcreteSectionAnalysis({ section, strainIndex, onStrainChange }) {
+  const result = useMemo(
+    () => solveConcreteMomentCurvature(section),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [section.b, section.h, section.fc, section.fy,
+     section.n_bot, section.dia_bot, section.n_top, section.dia_top, section.cover],
+  )
+
+  // Reset slider to ULS when section changes
+  useEffect(() => {
+    onStrainChange(result.numSteps)
+  }, [result]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const k = Math.min(Math.max(0, strainIndex), result.numSteps)
+
+  const cracked = result.crackCheck[k]
+  const eps_pct = ((result.eps_c_out[k] / result.eps_cu) * 100).toFixed(0)
+
+  const Fct = result.Fct_out[k]
+  const Fs  = result.Fs_out[k]
+  const Fc  = result.Fc_out[k]
+  const Fsp = result.Fsp_out[k]
+
+  const rowStyle = {
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+    fontSize: '0.82rem', flexWrap: 'wrap',
+  }
+
+  const chipStyle = (color) => ({
+    padding: '1px 7px', borderRadius: 3, fontWeight: 600,
+    background: color + '22', color, border: `1px solid ${color}66`,
+    whiteSpace: 'nowrap', fontFamily: 'monospace',
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+
+      {/* ── 3-panel section diagram ── */}
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+        <SectionDiagram section={section} result={result} k={k} />
+      </div>
+
+      {/* ── Strain slider ── */}
+      <div style={{
+        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+        padding: '0.75rem 1.5rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6,
+          fontSize: '0.82rem', color: '#374151' }}>
+          <span>ε<sub>c,top</sub> = <strong>{(result.eps_c_out[k] * 1000).toFixed(2)} ‰</strong></span>
+          <span style={{ color: cracked ? '#b45309' : '#059669', fontWeight: 600 }}>
+            {cracked ? 'Cracked' : 'Uncracked'}
+          </span>
+          <span>M = <strong>{result.Mc[k].toFixed(1)} kNm</strong></span>
+        </div>
+        <input
+          type="range"
+          min={0} max={result.numSteps} value={k}
+          style={{ width: '100%', cursor: 'pointer' }}
+          onChange={e => onStrainChange(parseInt(e.target.value))}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>
+          <span>0 ‰</span>
+          <span>ε<sub>cu</sub> = 3.5 ‰</span>
+        </div>
+      </div>
+
+      {/* ── Force equilibrium ── */}
+      <div style={{
+        background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8,
+        padding: '0.6rem 1.25rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
+      }}>
+        <div style={{ ...rowStyle, justifyContent: 'center' }}>
+          {!cracked && Fct > 0.1 && (
+            <><span style={chipStyle('#92400e')}>F<sub>ct</sub> {Fct.toFixed(0)} kN</span><span>+</span></>
+          )}
+          <span style={chipStyle('#b91c1c')}>F<sub>s</sub> {Fs.toFixed(0)} kN</span>
+          <span style={{ color: '#6b7280' }}>≈</span>
+          <span style={chipStyle('#1e3a5f')}>F<sub>c</sub> {Fc.toFixed(0)} kN</span>
+          {Fsp > 0.1 && (
+            <><span>+</span><span style={chipStyle('#065f46')}>F<sub>sp</sub> {Fsp.toFixed(0)} kN</span></>
+          )}
+        </div>
+      </div>
+
+      {/* ── M-K diagram ── */}
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+        <MomentCurvatureSVG
+          Mc={result.Mc}
+          curvature={result.curvature}
+          activeIndex={k}
+          crackCheck={result.crackCheck}
+        />
+      </div>
+
+    </div>
+  )
+}
