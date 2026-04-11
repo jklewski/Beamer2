@@ -10,6 +10,8 @@
  */
 import { useState, useEffect } from 'react'
 import ConcreteSectionAnalysis from './ConcreteSectionAnalysis.jsx'
+import SteelSectionAnalysis    from './SteelSectionAnalysis.jsx'
+import GlulamSectionAnalysis   from './GlulamSectionAnalysis.jsx'
 import SectionPlaceholder      from './SectionPlaceholder.jsx'
 
 export default function SectionAnalysisView({ sectionState }) {
@@ -32,15 +34,25 @@ export default function SectionAnalysisView({ sectionState }) {
     )
   }
 
-  // ── Future: steel section analysis ──────────────────────────────────────
-  // if (type === 'steel') {
-  //   return <SteelSectionAnalysis section={sectionState.steel} />
-  // }
+  if (type === 'steel') {
+    return (
+      <SteelSectionAnalysis
+        section={sectionState.steel}
+        strainIndex={strainIndex}
+        onStrainChange={setStrainIndex}
+      />
+    )
+  }
 
-  // ── Future: glulam section analysis ─────────────────────────────────────
-  // if (type === 'glulam') {
-  //   return <GlulamSectionAnalysis section={sectionState.glulam} />
-  // }
+  if (type === 'glulam') {
+    return (
+      <GlulamSectionAnalysis
+        section={sectionState.glulam}
+        strainIndex={strainIndex}
+        onStrainChange={setStrainIndex}
+      />
+    )
+  }
 
   return <SectionPlaceholder />
 }

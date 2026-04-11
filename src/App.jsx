@@ -111,8 +111,8 @@ export default function App() {
 
   const [sectionState, setSectionState] = useState({
     type: 'none',
-    glulam:   { grade: 'GL28h', b: 140, h: 360 },
-    steel:    { profile: 'IPE200' },
+    glulam:   { grade: 'GL28h', b: 140, h: 360, cc: 'CC2', loadDuration: 'mediumTerm' },
+    steel:    { family: 'IPE', profile: 'IPE200', fy: 355 },
     concrete: { b: 200, h: 400, n_bot: 3, dia_bot: 16, n_top: 0, dia_top: 10, cover: 30, fc: 25, fy: 500 },
   })
 
@@ -303,7 +303,7 @@ export default function App() {
       <div style={{ background: '#1a1a2e', color: '#fff', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <h1 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 600 }}>Beamer2</h1>
         <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {['beam', 'column', 'section'].map(t => (
+          {['beam', 'section'].map(t => (
             <button
               key={t}
               onClick={() => { setTab(t); setSelectedId(null) }}
@@ -318,7 +318,7 @@ export default function App() {
                 fontSize: '0.875rem',
               }}
             >
-              {t === 'beam' ? 'Beam' : t === 'column' ? 'Column' : 'Section'}
+              {t === 'beam' ? 'Beam' : 'Section'}
             </button>
           ))}
         </div>

@@ -1,4 +1,11 @@
-import { IPE_SECTIONS } from '../../data/sections.js'
+import { IPE_SECTIONS, HEA_SECTIONS, HEB_SECTIONS, HEM_SECTIONS } from '../../data/sections.js'
+
+const FAMILY_MAP = {
+  IPE: IPE_SECTIONS,
+  HEA: HEA_SECTIONS,
+  HEB: HEB_SECTIONS,
+  HEM: HEM_SECTIONS,
+}
 import { GLULAM } from '../../data/materials.js'
 
 const labelStyle = {
@@ -159,21 +166,70 @@ function SectionFields({ sectionState, onSectionChange }) {
               onChange={e => onSectionChange({ ...sc, glulam: { ...sc.glulam, h: parseFloat(e.target.value) || 360 } })}
             />
           </Field>
+          <Field label="Climate class">
+            <select
+              value={sc.glulam?.cc ?? 'CC2'}
+              onChange={e => onSectionChange({ ...sc, glulam: { ...sc.glulam, cc: e.target.value } })}
+              style={inputStyle}
+            >
+              <option value="CC1">CC1</option>
+              <option value="CC2">CC2</option>
+              <option value="CC3">CC3</option>
+            </select>
+          </Field>
+          <Field label="Load duration">
+            <select
+              value={sc.glulam?.loadDuration ?? 'mediumTerm'}
+              onChange={e => onSectionChange({ ...sc, glulam: { ...sc.glulam, loadDuration: e.target.value } })}
+              style={inputStyle}
+            >
+              <option value="permanent">Permanent</option>
+              <option value="longTerm">Long-term</option>
+              <option value="mediumTerm">Medium-term</option>
+              <option value="shortTerm">Short-term</option>
+              <option value="instantaneous">Instantaneous</option>
+            </select>
+          </Field>
         </>
       )}
 
       {/* ── Steel ── */}
-      {sc.type === 'steel' && (
-        <Field label="Profile">
-          <select
-            value={sc.steel?.profile ?? 'IPE200'}
-            onChange={e => onSectionChange({ ...sc, steel: { ...sc.steel, profile: e.target.value } })}
-            style={inputStyle}
-          >
-            {Object.keys(IPE_SECTIONS).map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </Field>
-      )}
+      {sc.type === 'steel' && (() => {
+        const family  = sc.steel?.family ?? 'IPE'
+        const profiles = Object.keys(FAMILY_MAP[family] ?? IPE_SECTIONS)
+        return (
+          <>
+            <Field label="Family">
+              <select
+                value={family}
+                onChange={e => {
+                  const newFamily = e.target.value
+                  const firstProfile = Object.keys(FAMILY_MAP[newFamily] ?? IPE_SECTIONS)[0]
+                  onSectionChange({ ...sc, steel: { ...sc.steel, family: newFamily, profile: firstProfile } })
+                }}
+                style={inputStyle}
+              >
+                {Object.keys(FAMILY_MAP).map(f => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </Field>
+            <Field label="Profile">
+              <select
+                value={sc.steel?.profile ?? 'IPE200'}
+                onChange={e => onSectionChange({ ...sc, steel: { ...sc.steel, profile: e.target.value } })}
+                style={inputStyle}
+              >
+                {profiles.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </Field>
+            <Field label="f_yd (MPa)">
+              <input type="number" min="200" max="500" step="5" style={inputStyle}
+                value={sc.steel?.fy ?? 355}
+                onChange={e => onSectionChange({ ...sc, steel: { ...sc.steel, fy: parseFloat(e.target.value) || 355 } })}
+              />
+            </Field>
+          </>
+        )
+      })()}
     </>
   )
 }

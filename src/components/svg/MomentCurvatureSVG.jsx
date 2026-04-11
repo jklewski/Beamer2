@@ -12,6 +12,7 @@ export default function MomentCurvatureSVG({
   curvature  = [],
   activeIndex = 0,
   crackCheck = [],
+  limitLines = [],   // [{ M, label, color }] — horizontal reference lines (e.g. M_el, M_pl)
 }) {
   const W = 520, H = 200
   const x0 = 58, x1 = 500, plotW = x1 - x0
@@ -126,6 +127,21 @@ export default function MomentCurvatureSVG({
       {crackX !== null && (
         <text x={crackX + 3} y={y1 + 10} fontSize={8.5} fill="#b45309">crack</text>
       )}
+
+      {/* ── Limit lines (e.g. M_el, M_pl for steel) ── */}
+      {limitLines.map(({ M, label, color = '#6b7280' }, i) => {
+        const ly = toY(M)
+        if (ly < y1 || ly > y0) return null
+        return (
+          <g key={i}>
+            <line x1={x0} x2={x1} y1={ly} y2={ly}
+              stroke={color} strokeWidth={1} strokeDasharray="5,3" />
+            <text x={x1 - 3} y={ly - 4} fontSize={8.5} fill={color} textAnchor="end">
+              {label}
+            </text>
+          </g>
+        )
+      })}
 
     </svg>
   )
