@@ -65,10 +65,10 @@ function solveGlulam({ grade, b, h, cc = 'CC2', loadDuration = 'mediumTerm', num
 
 // ── Three-panel section SVG ───────────────────────────────────────────────────
 
-function GlulamSectionDiagram({ result, k }) {
+function GlulamSectionDiagram({ result, k, flip }) {
   const { b, h, fmd, E, W } = result
 
-  const M_k      = result.Mc[k] ?? 0             // kNm at slider step
+  const M_k      = result.Mc[k] ?? 0             // kNm at slider step (always positive)
   const sigma_k  = (M_k * 1e6) / W               // MPa at extreme fibre
   const eps_k    = sigma_k / E                    // strain at extreme fibre
 
@@ -107,19 +107,15 @@ function GlulamSectionDiagram({ result, k }) {
   const hasMoment = M_k > 0.01
 
   // ── Stress polygons (triangular for linear elastic) ──────────────────────────
-  // Compression half (top): walks from y=h (top) down to y=h/2 (NA)
-  const compPoly = [
-    `${p2z},${tY(h)}`,
-    `${(p2z + sigma_k * sigScale).toFixed(1)},${tY(h)}`,
-    `${p2z},${naY}`,
-  ].join(' ')
+  // flip=false: compression at top, tension at bottom
+  // flip=true:  compression at bottom, tension at top
+  const compPoly = !flip
+    ? [`${p2z},${tY(h)}`,  `${(p2z + sigma_k * sigScale).toFixed(1)},${tY(h)}`,  `${p2z},${naY}`].join(' ')
+    : [`${p2z},${tY(0)}`,  `${(p2z + sigma_k * sigScale).toFixed(1)},${tY(0)}`,  `${p2z},${naY}`].join(' ')
 
-  // Tension half (bottom): walks from NA down to y=0 (bottom)
-  const tensPoly = [
-    `${p2z},${naY}`,
-    `${(p2z - sigma_k * sigScale).toFixed(1)},${tY(0)}`,
-    `${p2z},${tY(0)}`,
-  ].join(' ')
+  const tensPoly = !flip
+    ? [`${p2z},${naY}`, `${(p2z - sigma_k * sigScale).toFixed(1)},${tY(0)}`,  `${p2z},${tY(0)}`].join(' ')
+    : [`${p2z},${naY}`, `${(p2z - sigma_k * sigScale).toFixed(1)},${tY(h)}`,  `${p2z},${tY(h)}`].join(' ')
 
   // ── fmd limit lines ──────────────────────────────────────────────────────────
   const fmdLineX = p2z + fmd * sigScale
@@ -183,11 +179,13 @@ function GlulamSectionDiagram({ result, k }) {
         <>
           <polygon points={compPoly} fill="rgba(30,58,95,0.22)"  stroke={compC} strokeWidth={1.2} />
           <polygon points={tensPoly} fill="rgba(185,28,28,0.15)" stroke={tensC} strokeWidth={1.2} />
-          <text x={p2z + sigma_k * sigScale} y={tY(h) - 5}
+          <text x={p2z + sigma_k * sigScale}
+            y={!flip ? tY(h) - 5 : tY(0) + 11}
             textAnchor="middle" fontSize={7.5} fill={compC}>
             {sigma_k.toFixed(1)} MPa
           </text>
-          <text x={p2z - sigma_k * sigScale} y={tY(0) + 11}
+          <text x={p2z - sigma_k * sigScale}
+            y={!flip ? tY(0) + 11 : tY(h) - 5}
             textAnchor="middle" fontSize={7.5} fill={tensC}>
             {sigma_k.toFixed(1)} MPa
           </text>
@@ -199,42 +197,32 @@ function GlulamSectionDiagram({ result, k }) {
       <line x1={p3z - 3} y1={topY} x2={p3z + 3} y2={topY} stroke={dc} strokeWidth={0.9} />
       <line x1={p3z - 3} y1={botY} x2={p3z + 3} y2={botY} stroke={dc} strokeWidth={0.9} />
 
-      {hasMoment && (
-        <>
-          {/* Filled area (two triangles: compression right, tension left) */}
-          <polygon
-            points={[
-              `${p3z},${tY(h)}`,
-              `${tX3(eps_k).toFixed(1)},${tY(h)}`,
-              `${p3z},${naY}`,
-            ].join(' ')}
-            fill="rgba(30,58,95,0.08)" stroke="none"
-          />
-          <polygon
-            points={[
-              `${p3z},${naY}`,
-              `${tX3(-eps_k).toFixed(1)},${tY(0)}`,
-              `${p3z},${tY(0)}`,
-            ].join(' ')}
-            fill="rgba(185,28,28,0.06)" stroke="none"
-          />
-          {/* Strain line (single straight line top to bottom) */}
-          <line
-            x1={tX3(eps_k)} y1={tY(h)}
-            x2={tX3(-eps_k)} y2={tY(0)}
-            stroke={compC} strokeWidth={1.5}
-          />
-          <circle cx={p3z} cy={naY} r={2.5} fill={dc} />
-          <text x={tX3(eps_k)} y={tY(h) - 6}
-            textAnchor="middle" fontSize={7.5} fill={compC}>
-            {(eps_k * 1000).toFixed(2)}‰
-          </text>
-          <text x={tX3(-eps_k) - 3} y={tY(0) + 11}
-            textAnchor="end" fontSize={7.5} fill={tensC}>
-            {(eps_k * 1000).toFixed(2)}‰
-          </text>
-        </>
-      )}
+      {hasMoment && (() => {
+        // flip=false: compression (right) at top, tension (left) at bottom
+        // flip=true:  compression (right) at bottom, tension (left) at top
+        const compY = !flip ? tY(h) : tY(0)
+        const tensY = !flip ? tY(0) : tY(h)
+        const compX = tX3(eps_k)    // rightward
+        const tensX = tX3(-eps_k)   // leftward
+        return (
+          <>
+            <polygon points={[`${p3z},${compY}`, `${compX.toFixed(1)},${compY}`, `${p3z},${naY}`].join(' ')}
+              fill="rgba(30,58,95,0.08)" stroke="none" />
+            <polygon points={[`${p3z},${naY}`, `${tensX.toFixed(1)},${tensY}`, `${p3z},${tensY}`].join(' ')}
+              fill="rgba(185,28,28,0.06)" stroke="none" />
+            <line x1={compX} y1={compY} x2={tensX} y2={tensY} stroke={compC} strokeWidth={1.5} />
+            <circle cx={p3z} cy={naY} r={2.5} fill={dc} />
+            <text x={compX} y={compY + (!flip ? -6 : 13)}
+              textAnchor="middle" fontSize={7.5} fill={compC}>
+              {(eps_k * 1000).toFixed(2)}‰
+            </text>
+            <text x={tensX - 3} y={tensY + (!flip ? 11 : -6)}
+              textAnchor="end" fontSize={7.5} fill={tensC}>
+              {(eps_k * 1000).toFixed(2)}‰
+            </text>
+          </>
+        )
+      })()}
 
     </svg>
   )
@@ -252,13 +240,23 @@ export default function GlulamSectionAnalysis({ section, strainIndex, onStrainCh
   const result = useMemo(() => solveGlulam({ grade, b, h, cc, loadDuration }), [grade, b, h, cc, loadDuration])
 
   useEffect(() => {
-    onStrainChange(result.numSteps - 1)
+    onStrainChange(0)
   }, [result]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const k       = Math.min(Math.max(0, strainIndex), result.numSteps - 1)
-  const M_k     = result.Mc[k] ?? 0
+  const nSteps = result.numSteps - 1
+  const flip   = strainIndex < 0
+  const k      = Math.min(Math.max(0, Math.abs(strainIndex)), nSteps)
+  const M_k    = result.Mc[k] ?? 0
+  const M_val  = M_k * (flip ? -1 : 1)
   const util    = result.M_Rd > 0 ? M_k / result.M_Rd : 0
   const utilPct = (util * 100).toFixed(0)
+
+  // Bidirectional M-K (symmetric section → mirror)
+  const negMc        = result.Mc.slice(1).reverse().map(m => -m)
+  const negCurvature = result.curvature.slice(1).reverse().map(v => -v)
+  const combinedMc        = [...negMc, ...result.Mc]
+  const combinedCurvature = [...negCurvature, ...result.curvature]
+  const activeIndex        = negMc.length + (flip ? -k : k)
 
   const chipStyle = (color) => ({
     padding: '1px 7px', borderRadius: 3, fontWeight: 600,
@@ -273,7 +271,7 @@ export default function GlulamSectionAnalysis({ section, strainIndex, onStrainCh
 
       {/* ── 3-panel section diagram ── */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
-        <GlulamSectionDiagram result={result} k={k} />
+        <GlulamSectionDiagram result={result} k={k} flip={flip} />
       </div>
 
       {/* ── Moment slider ── */}
@@ -283,7 +281,7 @@ export default function GlulamSectionAnalysis({ section, strainIndex, onStrainCh
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6,
           fontSize: '0.82rem', color: '#374151' }}>
-          <span>M = <strong>{M_k.toFixed(1)} kNm</strong></span>
+          <span>M = <strong>{M_val.toFixed(1)} kNm</strong></span>
           <span style={{ color: utilColor, fontWeight: 600 }}>
             η = {utilPct}%
           </span>
@@ -291,14 +289,15 @@ export default function GlulamSectionAnalysis({ section, strainIndex, onStrainCh
         </div>
         <input
           type="range"
-          min={0} max={result.numSteps - 1} value={k}
+          min={-nSteps} max={nSteps} value={strainIndex}
           style={{ width: '100%', cursor: 'pointer' }}
           onChange={e => onStrainChange(parseInt(e.target.value))}
         />
         <div style={{ display: 'flex', justifyContent: 'space-between',
           fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>
-          <span>M = 0</span>
-          <span>M = M<sub>Rd</sub></span>
+          <span>−M<sub>Rd</sub> (hogging)</span>
+          <span>0</span>
+          <span>+M<sub>Rd</sub> (sagging)</span>
         </div>
       </div>
 
@@ -328,11 +327,12 @@ export default function GlulamSectionAnalysis({ section, strainIndex, onStrainCh
       {/* ── M-κ diagram ── */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
         <MomentCurvatureSVG
-          Mc={result.Mc}
-          curvature={result.curvature}
-          activeIndex={k}
+          Mc={combinedMc}
+          curvature={combinedCurvature}
+          activeIndex={activeIndex}
           limitLines={[
-            { M: result.M_Rd, label: `M_Rd = ${result.M_Rd.toFixed(1)} kNm`, color: '#059669' },
+            { M:  result.M_Rd, label: `M_Rd = ${result.M_Rd.toFixed(1)} kNm`, color: '#059669' },
+            { M: -result.M_Rd, label: '', color: '#059669' },
           ]}
         />
       </div>

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import FigureRenderer from './components/svg/FigureRenderer.jsx'
 import MomentDiagramSVG from './components/svg/MomentDiagramSVG.jsx'
 import Toolbox from './components/editor/Toolbox.jsx'
@@ -8,6 +8,7 @@ import InteractiveBeamOverlay from './components/editor/InteractiveBeamOverlay.j
 import { beamSolverDSM } from './utils/beamSolverDSM.js'
 import { IPE_SECTIONS } from './data/sections.js'
 import SectionAnalysisView from './components/section/SectionAnalysisView.jsx'
+import { getSectionCapacity } from './utils/sectionCapacity.js'
 
 // ── Support constraint helpers ───────────────────────────────────────────────
 
@@ -294,6 +295,12 @@ export default function App() {
 
   const currentFigure    = tab === 'beam' ? beamFigure() : columnFigure()
   const dsmResult        = tab === 'beam' ? computeDiagrams(beamState) : null
+
+  const sectionCapacity = useMemo(() => getSectionCapacity(sectionState), [sectionState])
+  const capacityLines = sectionCapacity ? [
+    { M:  sectionCapacity.M_pos, label: `+M_Rd = ${sectionCapacity.M_pos.toFixed(1)} kNm`, color: '#059669' },
+    { M: -sectionCapacity.M_neg, label: `−M_Rd = ${sectionCapacity.M_neg.toFixed(1)} kNm`, color: '#dc2626' },
+  ] : []
   const isMechanism      = dsmResult?.isMechanism ?? false
   const effectiveBeamH   = getEffectiveSectionH(sectionState, beamState.L)
 
@@ -455,6 +462,7 @@ export default function App() {
                 showShear
                 showDeflection
                 showPeakAnnotations
+                capacityLines={capacityLines}
               />
             </div>
           )}

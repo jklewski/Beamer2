@@ -48,6 +48,8 @@ export default function MomentDiagramSVG({
   showPeakAnnotations = true,
   // DSM precomputed data
   precomputed = null,
+  // Section capacity lines: [{ M, label, color }], M is signed (pos=sagging, neg=hogging)
+  capacityLines = [],
 }) {
   const Ltot = precomputed?.Ltot ?? (L + overhang)
 
@@ -230,7 +232,7 @@ export default function MomentDiagramSVG({
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ fontFamily: 'sans-serif' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ fontFamily: 'sans-serif', overflow: 'visible' }}>
 
       {/* ── Division tick marks ── */}
       {divisions && (() => {
@@ -322,6 +324,86 @@ export default function MomentDiagramSVG({
           </text>
         </g>
       )}
+
+      {/* ── Section capacity range indicator (right side) ── */}
+      {showMoment && capacityLines.length > 0 && (() => {
+        const x_ind   = x1 + 16
+        const yTop    = beamY - mAboveH
+        const yBot    = beamY + mBelowH
+
+        return (
+          <g>
+            {/* Backbone */}
+            <line x1={x_ind} x2={x_ind} y1={yTop - 2} y2={yBot + 2}
+              stroke="#d1d5db" strokeWidth={1} />
+            {/* Zero tick */}
+            <line x1={x_ind - 5} x2={x_ind + 5} y1={beamY} y2={beamY}
+              stroke="#9ca3af" strokeWidth={1} />
+
+            {capacityLines.map(({ M, label, color = '#059669' }, i) => {
+              const cy_actual  = toSvgY(M)
+              const isSagging  = M >= 0
+              // Clamp to plot boundaries
+              const cy_clamped = isSagging
+                ? Math.min(cy_actual, yBot)
+                : Math.max(cy_actual, yTop)
+              const inRange    = cy_actual >= yTop - 1 && cy_actual <= yBot + 1
+
+              // Shaded zone on the indicator bar
+              const shadeY1 = isSagging ? beamY      : cy_clamped
+              const shadeH  = isSagging ? cy_clamped - beamY : beamY - cy_clamped
+
+              // Arrow direction (sagging → down, hogging → up) and edge
+              const arrowDir  = isSagging ? 1 : -1
+              const arrowEdge = isSagging ? yBot : yTop
+
+              return (
+                <g key={i}>
+                  {/* Shaded zone */}
+                  {shadeH > 0 && (
+                    <rect x={x_ind - 5} y={shadeY1} width={10} height={shadeH}
+                      fill={color} fillOpacity={0.2} />
+                  )}
+
+                  {/* Dashed line across diagram — only when in range */}
+                  {inRange && (
+                    <line x1={x0} x2={x1} y1={cy_actual} y2={cy_actual}
+                      stroke={color} strokeWidth={1.1} strokeDasharray="5,3" opacity={0.85} />
+                  )}
+
+                  {inRange ? (
+                    /* Tick + label at exact position */
+                    <>
+                      <line x1={x_ind - 7} x2={x_ind + 7} y1={cy_actual} y2={cy_actual}
+                        stroke={color} strokeWidth={2} />
+                      <text x={x_ind + 10} y={cy_actual + 3.5} fontSize={8} fill={color}>
+                        {label}
+                      </text>
+                    </>
+                  ) : (
+                    /* Arrow at boundary + label outside */
+                    <>
+                      <polygon
+                        points={[
+                          `${x_ind},${arrowEdge + arrowDir * 8}`,
+                          `${x_ind - 4},${arrowEdge + arrowDir * 2}`,
+                          `${x_ind + 4},${arrowEdge + arrowDir * 2}`,
+                        ].join(' ')}
+                        fill={color}
+                      />
+                      <text x={x_ind + 10}
+                        y={arrowEdge + arrowDir * (isSagging ? 14 : -4)}
+                        fontSize={8} fill={color}>
+                        {label}
+                      </text>
+                    </>
+                  )}
+                </g>
+              )
+            })}
+          </g>
+        )
+      })()}
 
       {/* ── Deflection diagram ── */}
       {hasDefl && (
