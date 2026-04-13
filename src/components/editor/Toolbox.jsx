@@ -194,7 +194,7 @@ function LoadEditor({ load, beamState, selectedId, onLoadChange, onDeleteLoad })
 // ── Inner support editor ──────────────────────────────────────────────────────
 
 function InnerSupportEditor({ sup, beamState, onInnerSupportMove, onInnerSupportRemove }) {
-  const step = 1 / (beamState.numGridCells ?? 10)
+  const step = 0.1 / (beamState.L ?? 6)
   return (
     <div>
       <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
@@ -243,11 +243,11 @@ export default function Toolbox({
   const maxIsup   = (beamState?.intermediateSupports?.length ?? 0) >= 5
 
   const panelStyle = {
-    width: 185,
-    minWidth: 185,
-    background: '#f9fafb',
+    width: 175,
+    minWidth: 175,
+    background: '#fff',
     borderRight: '1px solid #e5e7eb',
-    padding: '0.85rem 0.75rem',
+    padding: '0.75rem 0.65rem',
     display: 'flex',
     flexDirection: 'column',
     gap: '0.1rem',
@@ -346,11 +346,6 @@ export default function Toolbox({
             value={beamState?.supports?.right ?? 'roller'}
             onChange={v => onBeamChange({ supports: { ...beamState.supports, right: v } })}
           />
-        </Field>
-        <Field label="Grid divisions">
-          <input type="number" min="2" max="20" step="1" style={inputStyle}
-            value={beamState?.numGridCells ?? 10}
-            onChange={e => onBeamChange({ numGridCells: Math.max(2, parseInt(e.target.value) || 10) })} />
         </Field>
         <Field label={`Support size ×${(beamState?.supportScale ?? 1).toFixed(1)}`}>
           <input type="range" min="0.5" max="3" step="0.1"

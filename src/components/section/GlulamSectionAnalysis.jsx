@@ -10,7 +10,7 @@
  */
 import { useMemo, useEffect } from 'react'
 import { GLULAM } from '../../data/materials.js'
-import MomentCurvatureSVG from '../svg/MomentCurvatureSVG.jsx'
+import MomentCurvatureSVG, { MK_W } from '../svg/MomentCurvatureSVG.jsx'
 
 // ── EC5 kmod table (Table 3.1, glulam) ───────────────────────────────────────
 const KMOD = {
@@ -266,72 +266,39 @@ export default function GlulamSectionAnalysis({ section, strainIndex, onStrainCh
 
   const utilColor = util < 0.75 ? '#059669' : util < 0.95 ? '#b45309' : '#dc2626'
 
+  const hr = <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', margin: 0, width: '100%' }} />
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
 
       {/* ── 3-panel section diagram ── */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+      <div style={{ padding: '1rem 1.5rem' }}>
         <GlulamSectionDiagram result={result} k={k} flip={flip} />
       </div>
 
-      {/* ── Moment slider ── */}
-      <div style={{
-        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-        padding: '0.75rem 1.5rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-          fontSize: '0.82rem', color: '#374151' }}>
-          <span>M = <strong>{M_val.toFixed(1)} kNm</strong></span>
-          <span style={{ color: utilColor, fontWeight: 600 }}>
-            η = {utilPct}%
-          </span>
-          <span>M<sub>Rd</sub> = <strong>{result.M_Rd.toFixed(1)} kNm</strong></span>
-        </div>
-        <input
-          type="range"
-          min={-nSteps} max={nSteps} value={strainIndex}
-          style={{ width: '100%', cursor: 'pointer' }}
-          onChange={e => onStrainChange(parseInt(e.target.value))}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between',
-          fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>
-          <span>−M<sub>Rd</sub> (hogging)</span>
-          <span>0</span>
-          <span>+M<sub>Rd</sub> (sagging)</span>
-        </div>
-      </div>
+      {hr}
 
-      {/* ── Design info strip ── */}
-      <div style={{
-        background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8,
-        padding: '0.6rem 1.25rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-          fontSize: '0.82rem', flexWrap: 'wrap', justifyContent: 'center',
-        }}>
-          <span style={chipStyle('#b45309')}>
-            k<sub>mod</sub> = {result.kmod.toFixed(2)}
-          </span>
-          <span style={{ color: '#6b7280' }}>·</span>
-          <span style={chipStyle('#1e3a5f')}>
-            f<sub>md</sub> = {result.fmd.toFixed(1)} MPa
-          </span>
-          <span style={{ color: '#6b7280' }}>·</span>
-          <span style={chipStyle('#059669')}>
-            M<sub>Rd</sub> = {result.M_Rd.toFixed(1)} kNm
-          </span>
+      {/* ── Info chips ── */}
+      <div style={{ padding: '0.5rem 1.5rem', width: MK_W, boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', flexWrap: 'wrap' }}>
+          <span style={{ color: '#6b7280' }}>M = <strong style={{ color: '#374151' }}>{M_val.toFixed(1)} kNm</strong></span>
+          <span style={{ flex: 1 }} />
+          <span style={chipStyle(utilColor)}>η = {utilPct}%</span>
+          <span style={chipStyle('#b45309')}>k<sub>mod</sub> = {result.kmod.toFixed(2)}</span>
+          <span style={chipStyle('#1e3a5f')}>f<sub>md</sub> = {result.fmd.toFixed(1)} MPa</span>
+          <span style={chipStyle('#059669')}>M<sub>Rd</sub> = {result.M_Rd.toFixed(1)} kNm</span>
         </div>
       </div>
 
       {/* ── M-κ diagram ── */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+      <div style={{ padding: '0.25rem 0 0.75rem' }}>
         <MomentCurvatureSVG
           Mc={combinedMc}
           curvature={combinedCurvature}
           activeIndex={activeIndex}
+          onActiveChange={idx => onStrainChange(idx - negMc.length)}
           limitLines={[
-            { M:  result.M_Rd, label: `M_Rd = ${result.M_Rd.toFixed(1)} kNm`, color: '#059669' },
+            { M:  result.M_Rd, label: `M_Rd ${result.M_Rd.toFixed(1)} kNm`, color: '#059669' },
             { M: -result.M_Rd, label: '', color: '#059669' },
           ]}
         />

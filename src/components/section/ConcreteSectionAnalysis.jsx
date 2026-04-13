@@ -12,7 +12,7 @@
  */
 import { useMemo, useEffect } from 'react'
 import { solveConcreteMomentCurvature } from '../../utils/concreteSectionSolver.js'
-import MomentCurvatureSVG from '../svg/MomentCurvatureSVG.jsx'
+import MomentCurvatureSVG, { MK_W } from '../svg/MomentCurvatureSVG.jsx'
 
 // ── EC2 Sargin stress for SVG rendering ───────────────────────────────────────
 function makeSigC(fc) {
@@ -364,64 +364,44 @@ export default function ConcreteSectionAnalysis({ section, strainIndex, onStrain
   const combinedCurvature = [...negCurvature, ...resultPos.curvature]
   const activeIndex        = negMc.length + (flip ? -k : k)
 
+  const hr = <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', margin: 0, width: '100%' }} />
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
 
       {/* ── 3-panel section diagram ── */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+      <div style={{ padding: '1rem 1.5rem' }}>
         <SectionDiagram section={section} result={result} k={k} flip={flip} />
       </div>
 
-      {/* ── Strain slider ── */}
-      <div style={{
-        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-        padding: '0.75rem 1.5rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-          fontSize: '0.82rem', color: '#374151' }}>
-          <span>ε<sub>{flip ? 'c,bot' : 'c,top'}</sub> = <strong>{(result.eps_c_out[k] * 1000).toFixed(2)} ‰</strong></span>
-          <span style={{ color: cracked ? '#b45309' : '#059669', fontWeight: 600 }}>
-            {cracked ? 'Cracked' : 'Uncracked'}
-          </span>
-          <span>M = <strong>{M_val.toFixed(1)} kNm</strong></span>
-        </div>
-        <input
-          type="range"
-          min={-nNeg} max={nPos} value={clampedIndex}
-          style={{ width: '100%', cursor: 'pointer' }}
-          onChange={e => onStrainChange(parseInt(e.target.value))}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>
-          <span>{noTopBars ? 'Cracking (no top bars)' : '−εcu = −3.5 ‰'}</span>
-          <span>0</span>
-          <span>+ε<sub>cu</sub> = 3.5 ‰</span>
-        </div>
-      </div>
+      {hr}
 
-      {/* ── Force equilibrium ── */}
-      <div style={{
-        background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8,
-        padding: '0.6rem 1.25rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
-      }}>
-        <div style={{ ...rowStyle, justifyContent: 'center' }}>
-          {!cracked && Fct > 0.1 && (
-            <><span style={chipStyle('#92400e')}>F<sub>ct</sub> {Fct.toFixed(0)} kN</span><span>+</span></>
-          )}
+      {/* ── Info chips ── */}
+      <div style={{ padding: '0.5rem 1.5rem', width: MK_W, boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', flexWrap: 'wrap' }}>
+          <span style={{ color: '#6b7280' }}>ε<sub>c</sub> = <strong style={{ color: '#374151' }}>{(result.eps_c_out[k] * 1000).toFixed(2)} ‰</strong></span>
+          <span style={{ color: '#d1d5db' }}>·</span>
+          <span style={{ color: '#6b7280' }}>M = <strong style={{ color: '#374151' }}>{M_val.toFixed(1)} kNm</strong></span>
+          <span style={{ flex: 1 }} />
+          <span style={chipStyle(cracked ? '#b45309' : '#059669')}>{cracked ? 'Cracked' : 'Uncracked'}</span>
+          {!cracked && Fct > 0.1 && <span style={chipStyle('#92400e')}>F<sub>ct</sub> {Fct.toFixed(0)} kN</span>}
           <span style={chipStyle('#b91c1c')}>F<sub>s</sub> {Fs.toFixed(0)} kN</span>
-          <span style={{ color: '#6b7280' }}>≈</span>
+          <span style={{ color: '#9ca3af' }}>≈</span>
           <span style={chipStyle('#1e3a5f')}>F<sub>c</sub> {Fc.toFixed(0)} kN</span>
-          {Fsp > 0.1 && (
-            <><span>+</span><span style={chipStyle('#065f46')}>F<sub>sp</sub> {Fsp.toFixed(0)} kN</span></>
-          )}
+          {Fsp > 0.1 && <span style={chipStyle('#065f46')}>F<sub>sp</sub> {Fsp.toFixed(0)} kN</span>}
         </div>
       </div>
 
       {/* ── M-K diagram ── */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+      <div style={{ padding: '0.25rem 0 0.75rem' }}>
         <MomentCurvatureSVG
           Mc={combinedMc}
           curvature={combinedCurvature}
           activeIndex={activeIndex}
+          onActiveChange={idx => {
+            const raw = idx - negMc.length
+            onStrainChange(Math.max(-nNeg, Math.min(nPos, raw)))
+          }}
           crackCheck={[
             ...resultNeg.crackCheck.slice(1).reverse(),
             ...resultPos.crackCheck,

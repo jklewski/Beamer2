@@ -40,19 +40,37 @@ function findzero(y) {
   return null
 }
 
-/** Width of I-section at height y_mm from bottom (0 = bottom, h = top). */
-function getWidth(y_mm, h, b, tf, tw) {
-  if (y_mm <= tf || y_mm >= h - tf) return b
-  return tw
+/**
+ * Width of I-section at height y_mm from bottom, including fillet arcs.
+ *
+ * In the fillet zone just above the bottom flange (y ∈ [tf, tf+R]):
+ *   The fillet is a quarter-circle of radius R tangent to the web face (x = tw/2)
+ *   and the flange top (y = tf). Centre at (tw/2 + R, tf + R).
+ *   Extra half-width per side = sqrt(2R·u − u²), where u = y − tf.
+ * Symmetric argument applies just below the top flange.
+ */
+function getWidth(y_mm, h, b, tf, tw, R = 0) {
+  if (y_mm <= tf || y_mm >= h - tf) return b        // flanges
+  if (R > 0) {
+    if (y_mm < tf + R) {                            // bottom fillet zone
+      const u = y_mm - tf
+      return tw + 2 * Math.sqrt(Math.max(0, 2 * R * u - u * u))
+    }
+    if (y_mm > h - tf - R) {                        // top fillet zone
+      const u = h - tf - y_mm
+      return tw + 2 * Math.sqrt(Math.max(0, 2 * R * u - u * u))
+    }
+  }
+  return tw                                          // web
 }
 
 // ── Section classification (EC3, Table 5.2) ──────────────────────────────────
 
-function classifySection(h, b, tf, tw, fy) {
+function classifySection(h, b, tf, tw, fy, R = 0) {
   const eps = Math.sqrt(235 / fy)
 
-  // Web (in bending): c/t = clear web height / tw
-  const hw = h - 2 * tf
+  // Web (in bending): c/t per EC3 Table 5.2 — clear height between fillets
+  const hw = h - 2 * tf - 2 * R
   const cw = hw / tw
   let SC_web
   if      (cw < 72  * eps) SC_web = 1
@@ -96,6 +114,7 @@ export function solveSteelMomentCurvature({
   b,
   tf,
   tw,
+  R   = 0,
   Wy  = 0,
   Zy  = 0,
   fy  = 355,
@@ -137,7 +156,7 @@ export function solveSteelMomentCurvature({
       const hw = h - yna   // distance from NA to top
       for (const y of yArr) {
         const eps = hw > 0 ? eps_top * (y - yna) / hw : 0
-        F += f(eps) * getWidth(y, h, b, tf, tw) * dy
+        F += f(eps) * getWidth(y, h, b, tf, tw, R) * dy
       }
       return F
     })
@@ -167,7 +186,7 @@ export function solveSteelMomentCurvature({
     for (const y of yArr) {
       const eps = hw > 0 ? eps_top * (y - yna_mm) / hw : 0
       const sig = f(eps)
-      M_Nmm += Math.abs(sig) * getWidth(y, h, b, tf, tw) * dy * Math.abs(y - yna_mm)
+      M_Nmm += Math.abs(sig) * getWidth(y, h, b, tf, tw, R) * dy * Math.abs(y - yna_mm)
     }
     Mc[i] = M_Nmm * 1e-6     // N·mm → kN·m
   }
@@ -179,7 +198,7 @@ export function solveSteelMomentCurvature({
   }
 
   // Section classification (EC3)
-  const { SC_web, SC_flange, sectionClass } = classifySection(h, b, tf, tw, fy)
+  const { SC_web, SC_flange, sectionClass } = classifySection(h, b, tf, tw, fy, R)
 
   // Tabulated M_el and M_pl (from sections.js table values)
   const M_el = (fy * Wy) * 1e-6   // MPa × mm³ → kN·m

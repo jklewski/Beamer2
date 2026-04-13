@@ -12,7 +12,7 @@
  */
 import { useMemo, useEffect } from 'react'
 import { solveSteelMomentCurvature } from '../../utils/steelSectionSolver.js'
-import MomentCurvatureSVG from '../svg/MomentCurvatureSVG.jsx'
+import MomentCurvatureSVG, { MK_W } from '../svg/MomentCurvatureSVG.jsx'
 import { IPE_SECTIONS, HEA_SECTIONS, HEB_SECTIONS, HEM_SECTIONS } from '../../data/sections.js'
 
 const FAMILY_MAP = {
@@ -324,15 +324,6 @@ function SteelSectionDiagram({ result, sec, k, flip }) {
   )
 }
 
-// ── Section class chip ────────────────────────────────────────────────────────
-
-const CLASS_CHIP_COLOR = {
-  1: '#059669',
-  2: '#65a30d',
-  3: '#b45309',
-  4: '#dc2626',
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function SteelSectionAnalysis({ section, strainIndex, onStrainChange }) {
@@ -346,7 +337,7 @@ export default function SteelSectionAnalysis({ section, strainIndex, onStrainCha
   const result = useMemo(() => {
     if (!sec) return null
     return solveSteelMomentCurvature({
-      h: sec.h, b: sec.b, tf: sec.tf, tw: sec.tw,
+      h: sec.h, b: sec.b, tf: sec.tf, tw: sec.tw, R: sec.R ?? 0,
       Wy: sec.Wy, Zy: sec.Zy, fy,
     })
   }, [family, profile, fy]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -360,16 +351,16 @@ export default function SteelSectionAnalysis({ section, strainIndex, onStrainCha
   }
 
   const nSteps = result.numSteps - 1
-  const flip   = strainIndex < 0
-  const k      = Math.min(Math.max(0, Math.abs(strainIndex)), nSteps)
 
-  const eps_top   = result.eps_s_arr[k] ?? 0
-  const isElastic = k < result.elasticIndex
-  const M_val     = result.Mc[k] * (flip ? -1 : 1)
+  // For class 3+, cap interaction and display at the elastic limit
+  const capSteps = result.sectionClass >= 3 ? result.elasticIndex : nSteps
+  const clampedStrainIndex = Math.max(-capSteps, Math.min(capSteps, strainIndex))
 
-  // For symmetric sections: section class is the same for ±M.
-  // Only the compressed flange/web matter per EC3, but both flanges are identical.
-  const classColor = CLASS_CHIP_COLOR[result.sectionClass] ?? '#dc2626'
+  const flip = clampedStrainIndex < 0
+  const k    = Math.min(Math.max(0, Math.abs(clampedStrainIndex)), nSteps)
+
+  const eps_top = result.eps_s_arr[k] ?? 0
+  const M_val   = result.Mc[k] * (flip ? -1 : 1)
 
   const chipStyle = (color) => ({
     padding: '1px 7px', borderRadius: 3, fontWeight: 600,
@@ -377,84 +368,54 @@ export default function SteelSectionAnalysis({ section, strainIndex, onStrainCha
     whiteSpace: 'nowrap', fontFamily: 'monospace',
   })
 
-  // ── Bidirectional M-K ───────────────────────────────────────────────────────
-  // Symmetric section → mirror the positive curve for the negative side
+  // ── Bidirectional M-K ────────────────────────────────────────────────────────
   const negMc        = result.Mc.slice(1).reverse().map(m => -m)
   const negCurvature = result.curvature.slice(1).reverse().map(v => -v)
   const combinedMc        = [...negMc, ...result.Mc]
   const combinedCurvature = [...negCurvature, ...result.curvature]
   const activeIndex        = negMc.length + (flip ? -k : k)
 
+  // Valid drag range: for class 3+, limit to elastic portion
+  const validRange = result.sectionClass >= 3 ? {
+    min: negMc.length - result.elasticIndex,
+    max: negMc.length + result.elasticIndex,
+  } : null
+
+  const hr = <hr style={{ border: 'none', borderTop: '1px solid #f3f4f6', margin: 0, width: '100%' }} />
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
 
       {/* ── 3-panel section diagram ── */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+      <div style={{ padding: '1rem 1.5rem' }}>
         <SteelSectionDiagram result={result} sec={sec} k={k} flip={flip} />
       </div>
 
-      {/* ── Strain slider ── */}
-      <div style={{
-        background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
-        padding: '0.75rem 1.5rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-          fontSize: '0.82rem', color: '#374151' }}>
-          <span>ε<sub>{flip ? 'bot' : 'top'}</sub> = <strong>{(eps_top * 1000).toFixed(2)} ‰</strong></span>
-          <span style={{ color: isElastic ? '#059669' : '#b45309', fontWeight: 600 }}>
-            {isElastic ? 'Elastic' : 'Yielded'}
-          </span>
-          <span>M = <strong>{M_val.toFixed(1)} kNm</strong></span>
-        </div>
-        <input
-          type="range"
-          min={-nSteps} max={nSteps} value={strainIndex}
-          style={{ width: '100%', cursor: 'pointer' }}
-          onChange={e => onStrainChange(parseInt(e.target.value))}
-        />
-        <div style={{ display: 'flex', justifyContent: 'space-between',
-          fontSize: '0.75rem', color: '#9ca3af', marginTop: 2 }}>
-          <span>−ε<sub>y</sub> (hogging)</span>
-          <span>0</span>
-          <span>+ε<sub>y</sub> (sagging)</span>
-        </div>
-      </div>
+      {hr}
 
-      {/* ── Section class + reference moments ── */}
-      <div style={{
-        background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8,
-        padding: '0.6rem 1.25rem', width: '100%', maxWidth: 520, boxSizing: 'border-box',
-      }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-          fontSize: '0.82rem', flexWrap: 'wrap', justifyContent: 'center',
-        }}>
-          <span style={chipStyle(classColor)}>
-            Class {result.sectionClass} {flip ? '(−M)' : '(+M)'}
-          </span>
-          <span style={{ color: '#6b7280', fontSize: '0.75rem' }}>sym. →</span>
-          <span style={chipStyle('#b45309')}>
-            M<sub>el</sub> {result.M_el.toFixed(0)} kNm
-          </span>
-          <span style={{ color: '#6b7280' }}>·</span>
-          <span style={chipStyle('#059669')}>
-            M<sub>pl</sub> {result.M_pl.toFixed(0)} kNm
-          </span>
+      {/* ── Info row ── */}
+      <div style={{ padding: '0.5rem 1.5rem', width: MK_W, boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}>
+          <span style={{ color: '#6b7280' }}>ε = <strong style={{ color: '#374151' }}>{(eps_top * 1000).toFixed(2)} ‰</strong></span>
+          <span style={{ color: '#d1d5db' }}>·</span>
+          <span style={{ color: '#6b7280' }}>M = <strong style={{ color: '#374151' }}>{M_val.toFixed(1)} kNm</strong></span>
+          {result.sectionClass >= 3 && (
+            <>
+              <span style={{ flex: 1 }} />
+              <span style={chipStyle('#b45309')}>Class {result.sectionClass} — elastic only</span>
+            </>
+          )}
         </div>
       </div>
 
       {/* ── M-K diagram ── */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem' }}>
+      <div style={{ padding: '0.25rem 0 0.75rem' }}>
         <MomentCurvatureSVG
           Mc={combinedMc}
           curvature={combinedCurvature}
           activeIndex={activeIndex}
-          limitLines={[
-            { M:  result.M_el, label: `M_el = ${result.M_el.toFixed(0)} kNm`, color: '#f59e0b' },
-            { M:  result.M_pl, label: `M_pl = ${result.M_pl.toFixed(0)} kNm`, color: '#10b981' },
-            { M: -result.M_el, label: '', color: '#f59e0b' },
-            { M: -result.M_pl, label: '', color: '#10b981' },
-          ]}
+          onActiveChange={idx => onStrainChange(idx - negMc.length)}
+          validRange={validRange}
         />
       </div>
 

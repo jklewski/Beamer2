@@ -244,11 +244,11 @@ export default function PropertiesPanel({
   onSectionChange,
 }) {
   const panelStyle = {
-    width: 195,
-    minWidth: 195,
+    width: 185,
+    minWidth: 185,
     background: '#fff',
     borderLeft: '1px solid #e5e7eb',
-    padding: '0.85rem 0.85rem',
+    padding: '0.75rem 0.75rem',
     overflowY: 'auto',
     fontSize: '0.85rem',
   }

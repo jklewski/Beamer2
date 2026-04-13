@@ -11,6 +11,28 @@ function snapToGrid(frac, numGridCells) {
   return Math.round(frac * numGridCells) / numGridCells
 }
 
+/**
+ * Snap a point-load position to the grid, then nudge it away from any support
+ * position. The direction of the nudge follows which side of the support the
+ * raw (pre-snap) cursor fraction is on:
+ *   raw < support  → land one grid cell to the LEFT  of the support
+ *   raw >= support → land one grid cell to the RIGHT of the support
+ */
+function snapPointLoad(rawFrac, numGridCells, supportFracs) {
+  const step    = 1 / numGridCells
+  let   snapped = snapToGrid(clamp(rawFrac, 0, 1), numGridCells)
+
+  for (const sf of supportFracs) {
+    const sfSnapped = snapToGrid(sf, numGridCells)
+    if (Math.abs(snapped - sfSnapped) < step / 2) {
+      snapped = rawFrac < sf
+        ? clamp(sfSnapped - step, 0, 1)
+        : clamp(sfSnapped + step, 0, 1)
+    }
+  }
+  return snapped
+}
+
 // Format a beam fraction as a metre position label, e.g. 0.4 on a 6m beam → "2.4"
 function fmtPos(frac, L) {
   const m = frac * L
@@ -36,10 +58,12 @@ export default function InteractiveBeamOverlay({
     supports = {},
     showDimension = true,
     intermediateSupports = [],
-    numGridCells = 10,
     L = 6,
     supportScale = 1,
   } = beamState
+
+  // Fixed 0.1 m snap resolution regardless of beam length
+  const numGridCells = Math.round(L * 10)
 
   const layout = computeBeamLayout({ loads, supports, showDimension, beamH: effectiveBeamH, supportScale })
   const { W, x0, x1, beamLen, beamH, beamTop, beamBot, loadAreaTop,
@@ -60,7 +84,11 @@ export default function InteractiveBeamOverlay({
         const load = loads.find(l => l.id === dragging.loadId)
         if (!load) return
         if (dragging.handle === 'x') {
-          onLoadChange(dragging.loadId, { x: frac })
+          const rect = svgRef.current.getBoundingClientRect()
+          const svgX = (e.clientX - rect.left) / rect.width * W
+          const rawFrac = clamp((svgX - x0) / beamLen, 0, 1)
+          const supportFracs = [0, 1, ...intermediateSupports.map(s => s.frac)]
+          onLoadChange(dragging.loadId, { x: snapPointLoad(rawFrac, numGridCells, supportFracs) })
         } else if (dragging.handle === 'xStart') {
           onLoadChange(dragging.loadId, { xStart: Math.min(frac, (load.xEnd ?? 1) - 1 / numGridCells) })
         } else if (dragging.handle === 'xEnd') {
@@ -131,20 +159,6 @@ export default function InteractiveBeamOverlay({
         {label}
       </text>
     )
-  }
-
-  // ── Grid lines ──────────────────────────────────────────────────────────
-  function renderGrid() {
-    return Array.from({ length: numGridCells - 1 }, (_, k) => {
-      const gx = x0 + ((k + 1) / numGridCells) * beamLen
-      return (
-        <line key={k}
-          x1={gx} y1={loadAreaTop - 4} x2={gx} y2={beamBot + 6}
-          stroke="#d1d5db" strokeWidth="0.8" strokeDasharray="3 3"
-          style={{ pointerEvents: 'none' }}
-        />
-      )
-    })
   }
 
   // ── Point load handle ────────────────────────────────────────────────────
@@ -271,8 +285,6 @@ export default function InteractiveBeamOverlay({
       style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', overflow: 'visible' }}
       onClick={() => onSelectLoad(null)}
     >
-      {renderGrid()}
-
       {udlLoads.map((load, i) => renderUDLInteractive(load, i))}
       {pointLoads.map(load => renderPointLoadInteractive(load))}
       {intermediateSupports.map(sup => renderIsupInteractive(sup))}

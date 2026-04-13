@@ -162,13 +162,14 @@ export default function App() {
     if (elementType === 'inner-support') {
       setBeamState(prev => {
         if (prev.intermediateSupports.length >= 5) return prev
-        const snapped = snapFrac(0.5, prev.numGridCells)
+        const nGrid = Math.round(prev.L * 10)
+        const snapped = snapFrac(0.5, nGrid)
         const taken = new Set(prev.intermediateSupports.map(s => s.frac))
         let frac = snapped
         if (taken.has(frac)) {
-          for (let d = 1; d <= prev.numGridCells / 2; d++) {
-            const a = snapFrac(0.5 + d / prev.numGridCells, prev.numGridCells)
-            const b = snapFrac(0.5 - d / prev.numGridCells, prev.numGridCells)
+          for (let d = 1; d <= nGrid / 2; d++) {
+            const a = snapFrac(0.5 + d / nGrid, nGrid)
+            const b = snapFrac(0.5 - d / nGrid, nGrid)
             if (!taken.has(a) && a > 0 && a < 1) { frac = a; break }
             if (!taken.has(b) && b > 0 && b < 1) { frac = b; break }
           }
@@ -305,7 +306,7 @@ export default function App() {
   const effectiveBeamH   = getEffectiveSectionH(sectionState, beamState.L)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#f9fafb' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#fff' }}>
       {/* Header */}
       <div style={{ background: '#1a1a2e', color: '#fff', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <h1 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 600 }}>Beamer2</h1>
@@ -407,63 +408,65 @@ export default function App() {
         />
 
         {/* Center: scrollable column — beam figure + diagrams */}
-        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '1.5rem' }}>
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.25rem' }}>
 
           {/* Section analysis tab */}
           {tab === 'section' && (
             <SectionAnalysisView sectionState={sectionState} />
           )}
 
-          {/* Beam / Column figure with drop zone — hidden on section tab */}
-          {tab !== 'section' && <CanvasDropZone
-            onDropElement={handleDrop}
-            isDragOver={isDragOver}
-            setIsDragOver={setIsDragOver}
-            disabled={tab !== 'beam'}
-          >
-            <div ref={beamSvgRef} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1.5rem', display: 'inline-block' }}>
-              <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
-                <FigureRenderer figure={currentFigure} />
-                {tab === 'beam' && (
-                  <InteractiveBeamOverlay
-                    beamState={beamState}
-                    effectiveBeamH={effectiveBeamH}
-                    selectedId={selectedId}
-                    onSelectLoad={setSelectedId}
-                    onLoadChange={handleLoadChange}
-                    onSupportChange={handleSupportChange}
-                    onInnerSupportMove={handleInnerSupportMove}
-                    onInnerSupportRemove={handleInnerSupportRemove}
-                    onBeamChange={handleBeamChange}
+          {/* Beam / Column figure + diagrams */}
+          {tab !== 'section' && (
+            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+              <CanvasDropZone
+                onDropElement={handleDrop}
+                isDragOver={isDragOver}
+                setIsDragOver={setIsDragOver}
+                disabled={tab !== 'beam'}
+              >
+                <div ref={beamSvgRef} style={{ display: 'inline-block' }}>
+                  <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0 }}>
+                    <FigureRenderer figure={currentFigure} />
+                    {tab === 'beam' && (
+                      <InteractiveBeamOverlay
+                        beamState={beamState}
+                        effectiveBeamH={effectiveBeamH}
+                        selectedId={selectedId}
+                        onSelectLoad={setSelectedId}
+                        onLoadChange={handleLoadChange}
+                        onSupportChange={handleSupportChange}
+                        onInnerSupportMove={handleInnerSupportMove}
+                        onInnerSupportRemove={handleInnerSupportRemove}
+                        onBeamChange={handleBeamChange}
+                      />
+                    )}
+                  </div>
+                </div>
+              </CanvasDropZone>
+
+              {/* Mechanism warning */}
+              {tab === 'beam' && isMechanism && (
+                <div style={{
+                  background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 6,
+                  padding: '0.6rem 1.25rem', color: '#92400e', fontSize: '0.875rem',
+                }}>
+                  <strong>Mechanism detected.</strong> Add at least one vertical support to each segment.
+                </div>
+              )}
+
+              {/* M / V diagrams */}
+              {tab === 'beam' && dsmResult?.data && (
+                <div ref={diagramSvgRef} style={{ display: 'inline-block' }}>
+                  <MomentDiagramSVG
+                    precomputed={dsmResult.data}
+                    showMoment
+                    showShear
+                    showDeflection
+                    showPeakAnnotations
+                    capacityLines={capacityLines}
                   />
-                )}
-              </div>
-            </div>
-          </CanvasDropZone>}
-
-          {/* Mechanism warning */}
-          {tab === 'beam' && isMechanism && (
-            <div style={{
-              background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8,
-              padding: '0.75rem 1.25rem', color: '#92400e', fontSize: '0.875rem',
-              maxWidth: 520, width: '100%', boxSizing: 'border-box',
-            }}>
-              <strong>Mechanism detected.</strong> The beam has insufficient supports and cannot be solved.
-              Add at least one vertical support (pin, roller, or fixed) to each independent segment.
-            </div>
-          )}
-
-          {/* M / V diagrams — only shown for beam tab when solver succeeds */}
-          {tab === 'beam' && dsmResult?.data && (
-            <div ref={diagramSvgRef} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem 1.5rem', display: 'inline-block' }}>
-              <MomentDiagramSVG
-                precomputed={dsmResult.data}
-                showMoment
-                showShear
-                showDeflection
-                showPeakAnnotations
-                capacityLines={capacityLines}
-              />
+                </div>
+              )}
             </div>
           )}
 

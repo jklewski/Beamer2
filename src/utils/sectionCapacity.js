@@ -52,7 +52,7 @@ export function getSectionCapacity(sectionState) {
 
     // Run solver with minimal steps — only need sectionClass, M_el, M_pl
     const res = solveSteelMomentCurvature({
-      h: sec.h, b: sec.b, tf: sec.tf, tw: sec.tw,
+      h: sec.h, b: sec.b, tf: sec.tf, tw: sec.tw, R: sec.R ?? 0,
       Wy: sec.Wy, Zy: sec.Zy, fy,
       numSteps: 10,
     })
